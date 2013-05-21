@@ -12,15 +12,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BtceApi;
+import com.lenin.tradingplatform.client.LitecoinClient;
 import com.lenin.tradingplatform.client.TradingClient;
+import com.lenin.tradingplatform.client.Transaction;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.Rate;
 import com.lenin.tradingplatform.data.entities.Trade;
 import com.lenin.tradingplatform.data.entities.TradingSession;
+import com.lenin.tradingplatform.data.entities.User;
 import com.lenin.tradingplatform.data.repositories.OrderRepository;
 import com.lenin.tradingplatform.data.repositories.RateRepository;
 import com.lenin.tradingplatform.data.repositories.TradeRepository;
 import com.lenin.tradingplatform.data.repositories.TradingSessionRepository;
+import com.lenin.tradingplatform.data.repositories.UserRepository;
 
 @Service
 public class TradingProcess {
@@ -44,6 +48,8 @@ public class TradingProcess {
 	@Autowired
 	private OrderRepository orderRepository;
 	
+	@Autowired
+	private UserRepository userRepository;
 	
 	
 	public TradingProcess() {
@@ -64,7 +70,9 @@ public class TradingProcess {
 			updateOrders();
 		
 			updateTradingSessions();
-		
+			
+			updateAccounts();
+			
 			long finish = System.currentTimeMillis();
 		
 			long time = finish-start;
@@ -443,6 +451,21 @@ public class TradingProcess {
 			
 		}
 		
+		
+	}
+	
+	
+	private void updateAccounts() {
+		
+		LitecoinClient ltcClient = new LitecoinClient();
+		List<Transaction> transactions = ltcClient.getTransactions();
+		
+		List<User> users = userRepository.findAll();
+		
+		for(User user : users) {
+			
+			
+		}
 		
 	}
 	

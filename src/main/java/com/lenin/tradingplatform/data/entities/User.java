@@ -37,6 +37,8 @@ public class User implements Serializable {
 	@DBRef
 	private TradingSession currentTradingSession;
 	
+	private Double receivedOnAccount = 0.0;
+	
 	
 	public User() {
 	}
@@ -155,5 +157,21 @@ public class User implements Serializable {
 	public void addTradingSession(TradingSession tradingSession) {
 		tradingSessions.add(tradingSession);
 	}
+
+	public Double getReceivedOnAccount() {
+		return receivedOnAccount;
+	}
+
+	public void setReceivedOnAccount(Double receivedOnAccount) {
+		
+		Double difference = receivedOnAccount - this.receivedOnAccount;
+		
+		this.receivedOnAccount = receivedOnAccount;
+	
+	
+	}
+	
+	
+	
 
 }
