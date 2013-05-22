@@ -9,6 +9,10 @@ import java.util.Map;
 
 import org.codehaus.jettison.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BtceApi;
@@ -17,6 +21,7 @@ import com.lenin.tradingplatform.client.TradingClient;
 import com.lenin.tradingplatform.client.Transaction;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.Rate;
+import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.Trade;
 import com.lenin.tradingplatform.data.entities.TradingSession;
 import com.lenin.tradingplatform.data.entities.User;
@@ -35,6 +40,9 @@ public class TradingProcess {
 	private Long lastRateUpdateTime = 0L;
 	
 	private Long lastTradeTime = 0L;
+	
+	@Autowired
+	private MongoTemplate mongoTemplate;
 	
 	@Autowired
 	private RateRepository rateRepository;
@@ -70,8 +78,6 @@ public class TradingProcess {
 			updateOrders();
 		
 			updateTradingSessions();
-			
-			updateAccounts();
 			
 			long finish = System.currentTimeMillis();
 		
@@ -455,18 +461,5 @@ public class TradingProcess {
 	}
 	
 	
-	private void updateAccounts() {
-		
-		LitecoinClient ltcClient = new LitecoinClient();
-		List<Transaction> transactions = ltcClient.getTransactions();
-		
-		List<User> users = userRepository.findAll();
-		
-		for(User user : users) {
-			
-			
-		}
-		
-	}
 	
 }

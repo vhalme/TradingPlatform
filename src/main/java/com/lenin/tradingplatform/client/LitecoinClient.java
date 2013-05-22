@@ -34,13 +34,17 @@ public class LitecoinClient {
 	}
 	
 	
-	public List<Transaction> getTransactions() {
+	public List<Transaction> getTransactions(Long sinceTime) {
 		
 		List<Transaction> transactions = new ArrayList<Transaction>();
 		
 		BitcoinApi api = createBitcoinApi("ltc");
 		
 		List<String> params = new ArrayList<String>();
+		//params.add("");
+		//params.add("9999999");
+		params.add(""+sinceTime);
+		
 		JSONObject result = api.exec("listtransactions", params);
 		
 		try {
@@ -67,6 +71,14 @@ public class LitecoinClient {
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
+		
+		Transaction transaction = new Transaction();
+		transaction.setAccount("GJNDE1369224905477");
+		transaction.setAddress("LXKw8jkYiy9VX95qTpeLRy66VYK5SRrR2u");
+		transaction.setAmount(207.0);
+		transaction.setConfirmations(1);
+		transaction.setTime(1723987199L);
+		transactions.add(transaction);
 		
 		return transactions;
 		

@@ -23,17 +23,18 @@ public class Main {
 	@Autowired
 	private TradingProcess tradingProcess;
 	
+	@Autowired
+	private DepositMonitor depositMonitor;
+	
 	private void init() {
-		
-		System.out.println("Started: "+tradingProcess);
-		
+		System.out.println("Started: "+tradingProcess+"/"+depositMonitor);
 	}
 	
 	@Scheduled(fixedDelay = 15000)
 	public void update() {
 		
 		tradingProcess.update();
-		
+		depositMonitor.update();
 		
 	}
 	
