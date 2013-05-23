@@ -12,7 +12,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import com.lenin.tradingplatform.client.LitecoinClient;
+import com.lenin.tradingplatform.client.BitcoinClient;
+import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.Transaction;
 import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.User;
@@ -33,27 +34,45 @@ public class DepositMonitor {
 	
 	
 	public void update() {
-		update("ltc");
-		//update("usd");
+		updateBitcoin("ltc");
+		updateOkpay();
 	}
 	
 	
-	private void update(String currency) {
-		
-		// 1. Get the latest transaction time from settings
+	private void updateBitcoin(String currency) {
 		
 		Settings settings = getSettings(currency);
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
 		Long txSince = lastTxTimes.get(currency);
 		
+		BitcoinClient client = new BitcoinClient(currency);
+		List<Transaction> transactions = client.getTransactions(txSince);
+		
+		processTransactions(transactions, settings, currency);
+		
+		
+	}
+	
+	
+	private void updateOkpay() {
+		
+		Settings settings = getSettings("usd");
+		
+		OkpayClient client = new OkpayClient();
+		
+		List<Transaction> transactions = client.getTransactions(0L);
+		
+		processTransactions(transactions, settings, "usd");
+		
+	}
+	
+	
+	private void processTransactions(List<Transaction> transactions, Settings settings, String currency) {
+		
+		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
+		Long txSince = lastTxTimes.get(currency);
+		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
-		
-		// 2. List all NEW transactions from the network, save them 
-		//    and make an Account->NewTransactions[] hash.
-		//    Finally save the new latest transaction time to the settings.
-		
-		LitecoinClient ltcClient = new LitecoinClient();
-		List<Transaction> transactions = ltcClient.getTransactions(txSince);
 		
 		Map<String, List<Transaction>> txByAccount = new HashMap<String, List<Transaction>>();
 		
@@ -90,9 +109,6 @@ public class DepositMonitor {
 			
 		}
 		
-		
-		// 3. Update user funds with amounts in transactions
-		
 		List<String> accountNames = new ArrayList<String>(txByAccount.keySet());
 		
 		Query searchUsersByAccounts = new Query(Criteria.where("accountName").in(accountNames));
@@ -117,7 +133,6 @@ public class DepositMonitor {
 		if(users.size() > 0) {
 			userRepository.save(users);
 		}
-		
 		
 	}
 	

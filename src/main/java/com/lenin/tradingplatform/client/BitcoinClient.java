@@ -6,39 +6,20 @@ import java.util.List;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
 
-public class LitecoinClient {
+public class BitcoinClient {
 	
-	public LitecoinClient() {
-		
+	
+	private String currency;
+	
+	public BitcoinClient(String currency) {
+		this.currency = currency;
 	}
-	
-	public void checkPayment(String currency, String address) {
-		
-		
-		BitcoinApi api = createBitcoinApi(currency);
-		
-		List<String> params = new ArrayList<String>();
-		params.add(address);
-		
-		JSONObject result = api.exec("listreceivedbyaddress", params);
-		
-		try {
-			
-			System.out.println(result.get("result"));
-		
-		} catch(Exception e) {
-			e.printStackTrace();
-		}
-		
-		
-	}
-	
 	
 	public List<Transaction> getTransactions(Long sinceTime) {
 		
 		List<Transaction> transactions = new ArrayList<Transaction>();
 		
-		BitcoinApi api = createBitcoinApi("ltc");
+		BitcoinApi api = createBitcoinApi(currency);
 		
 		List<String> params = new ArrayList<String>();
 		//params.add("");
@@ -72,6 +53,7 @@ public class LitecoinClient {
 			e.printStackTrace();
 		}
 		
+		/*
 		Transaction transaction = new Transaction();
 		transaction.setAccount("GJNDE1369224905477");
 		transaction.setAddress("LXKw8jkYiy9VX95qTpeLRy66VYK5SRrR2u");
@@ -79,6 +61,7 @@ public class LitecoinClient {
 		transaction.setConfirmations(1);
 		transaction.setTime(1723987199L);
 		transactions.add(transaction);
+		*/
 		
 		return transactions;
 		

@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BtceApi;
-import com.lenin.tradingplatform.client.LitecoinClient;
+import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.TradingClient;
 import com.lenin.tradingplatform.client.Transaction;
 import com.lenin.tradingplatform.data.entities.Order;

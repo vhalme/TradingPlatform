@@ -40,6 +40,9 @@
 	<!-- Service -->
 	<bean id="tradingProcess" class="com.lenin.tradingplatform.TradingProcess">
     </bean>
+    
+    <bean id="depositMonitor" class="com.lenin.tradingplatform.DepositMonitor">
+    </bean>
      
 	<task:annotation-driven scheduler="taskScheduler"/>
 	<task:scheduler id="taskScheduler" pool-size="2"/>
