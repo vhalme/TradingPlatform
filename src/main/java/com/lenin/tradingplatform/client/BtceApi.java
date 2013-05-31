@@ -29,8 +29,8 @@ public class BtceApi {
 	
 	public static long _nonce = System.currentTimeMillis() / 10000L;
 	
-	private String key; //"XSR43QT2-B7PBL6EY-U6JCVFCM-7IMTI26B-7XEL3DGO";
-	private String secret; //"a93adec600bd65960d26d779343b70700fbb4a93e333e15350b2bb1a21fb46de";
+	private String key;
+	private String secret;
 	
 	private Double orderFee; // = 0.002;
 	
