@@ -15,9 +15,9 @@ public class BitcoinClient {
 		this.currency = currency;
 	}
 	
-	public List<Transaction> getTransactions(Long sinceTime) {
+	public List<FundTransaction> getTransactions(Long sinceTime) {
 		
-		List<Transaction> transactions = new ArrayList<Transaction>();
+		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
 		
 		BitcoinApi api = createBitcoinApi(currency);
 		
@@ -37,7 +37,9 @@ public class BitcoinClient {
 				
 				JSONObject txJson = data.getJSONObject(i);
 				
-				Transaction transaction = new Transaction();
+				BitcoinTransaction	transaction = new BitcoinTransaction();
+				transaction.setType("deposit");
+				transaction.setCurrency(currency);
 				transaction.setAccount(txJson.getString("account"));
 				transaction.setAddress(txJson.getString("address"));
 				transaction.setAmount(txJson.getDouble("amount"));

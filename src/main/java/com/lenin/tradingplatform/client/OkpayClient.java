@@ -21,7 +21,7 @@ public class OkpayClient {
 	public OkpayClient() {
 	}
 	
-	public List<Transaction> getTransactions(Long sinceTime) {
+	public List<FundTransaction> getTransactions(Long sinceTime) {
 		
 		Date now = new Date();
 		
@@ -66,7 +66,7 @@ public class OkpayClient {
 			e.printStackTrace();
 		}
 		
-		List<Transaction> transactions = new ArrayList<Transaction>();
+		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
 		
 		/*
 		Transaction transaction = new Transaction();

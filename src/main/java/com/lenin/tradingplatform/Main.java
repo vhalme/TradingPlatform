@@ -28,6 +28,7 @@ public class Main {
 	
 	private void init() {
 		System.out.println("Started: "+tradingProcess+"/"+depositMonitor);
+		tradingProcess.init();
 	}
 	
 	@Scheduled(fixedDelay = 15000)

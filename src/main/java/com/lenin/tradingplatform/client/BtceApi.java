@@ -29,19 +29,18 @@ public class BtceApi {
 	
 	public static long _nonce = System.currentTimeMillis() / 10000L;
 	
-	private static String _key = "XSR43QT2-B7PBL6EY-U6JCVFCM-7IMTI26B-7XEL3DGO";
-	private static String _secret = "a93adec600bd65960d26d779343b70700fbb4a93e333e15350b2bb1a21fb46de";
+	private String key; //"XSR43QT2-B7PBL6EY-U6JCVFCM-7IMTI26B-7XEL3DGO";
+	private String secret; //"a93adec600bd65960d26d779343b70700fbb4a93e333e15350b2bb1a21fb46de";
 	
-	public static Double currentRateLtcUsd = 0.0;
-	public static Double currentBuyRateLtcUsd = 0.0;
-	public static Double currentSellRateLtcUsd = 0.0;
+	private Double orderFee; // = 0.002;
 	
-	public static Double oldRateLtcUsd = 0.0;
+	public BtceApi(String key, String secret) {
+		this.key = key;
+		this.secret = secret;
+	}
 	
-	public static Double orderFee = 0.002;
 	
-	
-	public static JSONObject getRates(String pair) {
+	public JSONObject getRates(String pair) {
 		
 		try {
 	    	
@@ -89,42 +88,42 @@ public class BtceApi {
 	}
 	
 	
-	public static JSONObject getActiveOrderList() {
+	public JSONObject getActiveOrderList() {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
 		methodParams.add(new BasicNameValuePair("method", "OrderList"));
 		methodParams.add(new BasicNameValuePair("active", "1"));
-		JSONObject orderListResult = authenticatedHTTPRequest(methodParams);
+		JSONObject orderListResult = authenticatedHTTPRequest(methodParams, key, secret);
 		
 		return orderListResult;
 		
 	}
 	
 	
-	public static JSONObject getTradeList(Long since) {
+	public JSONObject getTradeList(Long since) {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
 		methodParams.add(new BasicNameValuePair("method", "TradeHistory"));
 		methodParams.add(new BasicNameValuePair("since", ""+since));
-		JSONObject tradeListResult = authenticatedHTTPRequest(methodParams);
+		JSONObject tradeListResult = authenticatedHTTPRequest(methodParams, key, secret);
 		
 		return tradeListResult;
 		
 	}
 
 	
-	public static JSONObject getAccountInfo() {
+	public JSONObject getAccountInfo() {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
 		methodParams.add(new BasicNameValuePair("method", "getInfo"));
-		JSONObject userInfoResult = authenticatedHTTPRequest(methodParams);
+		JSONObject userInfoResult = authenticatedHTTPRequest(methodParams, key, secret);
 		
 		return userInfoResult;
 		
 	}
 	
 	
-	public static JSONObject trade(Order order, Double feeFactor) {
+	public JSONObject trade(Order order, Double feeFactor) {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
 		methodParams.add(new BasicNameValuePair("method", "Trade"));
@@ -144,20 +143,20 @@ public class BtceApi {
 		methodParams.add(new BasicNameValuePair("amount", amountStr));
 		methodParams.add(new BasicNameValuePair("rate", ""+rateStr));
 		
-		JSONObject tradeResult = authenticatedHTTPRequest(methodParams);
+		JSONObject tradeResult = authenticatedHTTPRequest(methodParams, key, secret);
 		
 		return tradeResult;
 		
 	}
 	
 
-	public static JSONObject cancelOrder(Order order) {
+	public JSONObject cancelOrder(Order order) {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
 		methodParams.add(new BasicNameValuePair("method", "CancelOrder"));
 		methodParams.add(new BasicNameValuePair("order_id", order.getOrderId()));
 		
-		JSONObject cancelOrderResult = authenticatedHTTPRequest(methodParams);
+		JSONObject cancelOrderResult = authenticatedHTTPRequest(methodParams, key, secret);
 		
 		return cancelOrderResult;
 		
@@ -179,7 +178,7 @@ public class BtceApi {
 	}
 	
 	
-	public static JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams) {
+	public static JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams, String key, String secret) {
         
 		Date now = new Date();
 		
@@ -206,12 +205,12 @@ public class BtceApi {
         	UrlEncodedFormEntity uefe = new UrlEncodedFormEntity(params, "UTF-8");
             httppost.setEntity(uefe);
             
-    		SecretKeySpec key = new SecretKeySpec(_secret.getBytes("UTF-8"), "HmacSHA512");
+    		SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes("UTF-8"), "HmacSHA512");
     		Mac mac = Mac.getInstance("HmacSHA512" );
-        	mac.init(key);
+        	mac.init(keySpec);
         	
         	String sign = Hex.encodeHexString(mac.doFinal(paramsString.getBytes("UTF-8")));
-        	httppost.addHeader("Key", _key);
+        	httppost.addHeader("Key", key);
         	httppost.addHeader("Sign", sign);
         	
         } catch(Exception e) {
@@ -270,6 +269,40 @@ public class BtceApi {
         
     }
 
+	
+	public String getKey() {
+		return key;
+	}
 
+
+
+	public void setKey(String key) {
+		this.key = key;
+	}
+
+
+
+	public String getSecret() {
+		return secret;
+	}
+
+
+
+	public void setSecret(String secret) {
+		this.secret = secret;
+	}
+
+
+
+	public Double getOrderFee() {
+		return orderFee;
+	}
+
+
+
+	public void setOrderFee(Double orderFee) {
+		this.orderFee = orderFee;
+	}
+	
 	
 }

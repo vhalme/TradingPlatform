@@ -22,6 +22,7 @@ public class TradingClient {
 	private TradingSessionRepository tradingSessionRepository;
 	private TradeRepository tradeRepository;
 	
+	private BtceApi btceApi;
 	
 	public TradingClient(TradingSession tradingSession, TradingSessionRepository tradingSessionRepository, 
 			OrderRepository orderRepository,
@@ -35,6 +36,15 @@ public class TradingClient {
 	}
 	
 	
+	public BtceApi getBtceApi() {
+		return btceApi;
+	}
+
+	public void setBtceApi(BtceApi btceApi) {
+		this.btceApi = btceApi;
+	}
+
+
 	public TradingSession getTradingSession() {
 		return tradingSession;
 	}
@@ -79,11 +89,16 @@ public class TradingClient {
 
 	public RequestResponse cancelOrder(Order order) {
 		
+		if(btceApi == null) {
+			System.err.println("BtceApi undefined. Cannot execute cancelOrder command.");
+			return null;
+		}
+		
 		RequestResponse response = new RequestResponse();
 		
 		if(tradingSession.getLive()) {
 			
-			JSONObject cancelOrderResult = BtceApi.cancelOrder(order);
+			JSONObject cancelOrderResult = btceApi.cancelOrder(order);
 		
 			if(cancelOrderResult == null) {
 				response.setSuccess(0);
@@ -148,6 +163,11 @@ public class TradingClient {
 	
 	public RequestResponse trade(Order order) {
 		
+		if(btceApi == null) {
+			System.err.println("BtceApi undefined. Cannot execute trade command.");
+			return null;
+		}
+		
 		RequestResponse response = new RequestResponse();
 		
 		order.setTradingSession(tradingSession);
@@ -158,7 +178,7 @@ public class TradingClient {
 		
 		if(tradingSession.getLive()) {
 			
-			JSONObject tradeResult = BtceApi.trade(order, feeFactor);
+			JSONObject tradeResult = btceApi.trade(order, feeFactor);
 			
 			if(tradeResult == null) {
 				response.setSuccess(0);
@@ -245,7 +265,7 @@ public class TradingClient {
 	
 	private void executeOrder(Order order) {
 		
-		Double brokerFeeFactor = 1-BtceApi.orderFee;
+		Double brokerFeeFactor = 1-btceApi.getOrderFee();
 		
 		order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
 		

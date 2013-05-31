@@ -11,20 +11,15 @@ import org.codehaus.jettison.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BtceApi;
-import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.TradingClient;
-import com.lenin.tradingplatform.client.Transaction;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.Rate;
 import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.Trade;
 import com.lenin.tradingplatform.data.entities.TradingSession;
-import com.lenin.tradingplatform.data.entities.User;
 import com.lenin.tradingplatform.data.repositories.OrderRepository;
 import com.lenin.tradingplatform.data.repositories.RateRepository;
 import com.lenin.tradingplatform.data.repositories.TradeRepository;
@@ -59,9 +54,37 @@ public class TradingProcess {
 	@Autowired
 	private UserRepository userRepository;
 	
+	private Settings settings;
+	private BtceApi btceApi;
 	
-	public TradingProcess() {
 	
+	public void init() {
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		List<Settings> settingsResult = mongoOps.findAll(Settings.class);
+		
+		if(settingsResult.size() > 0) {	
+			
+			settings = settingsResult.get(0);
+			
+			if(settings.getBtceApiKey() == null) {
+				System.out.println("BTCE API key is not set. Exiting.");
+				System.exit(2);
+			}
+		
+		} else {
+			
+			settings = new Settings();
+			mongoOps.save(settings);
+			
+			System.out.println("Created new settings entry. Supply BTCE API key and secret and start the process again.");
+			System.exit(1);
+			
+		}
+		
+		btceApi = new BtceApi(settings.getBtceApiKey(), settings.getBtceApiSecret());
+		btceApi.setOrderFee(0.002);
+		
 	}
 	
 	
@@ -223,7 +246,7 @@ public class TradingProcess {
 			
 			Rate rate = new Rate();
 		
-			JSONObject ratesResult = BtceApi.getRates(pair);
+			JSONObject ratesResult = btceApi.getRates(pair);
 			JSONObject rateJson = ratesResult.getJSONObject("ticker");
 			
 			rate.setSetType("15s");
@@ -254,7 +277,7 @@ public class TradingProcess {
 			}
 		}
 		
-		JSONObject tradeListResult = BtceApi.getTradeList(lastTradeTime+1);
+		JSONObject tradeListResult = btceApi.getTradeList(lastTradeTime+1);
 		
 		try {
 			
@@ -350,7 +373,7 @@ public class TradingProcess {
 					
 					if(reversedOrder != null) {
 						
-						Double totalFeeFactor = (1-0.002) * (1-BtceApi.orderFee);
+						Double totalFeeFactor = (1-0.002) * (1-btceApi.getOrderFee());
 						//Double totalFeeFactor = (1-UserTrader.orderFee) * (1-BtceApi.orderFee);
 						
 						reversedOrder.setFilledAmount(order.getFilledAmount());

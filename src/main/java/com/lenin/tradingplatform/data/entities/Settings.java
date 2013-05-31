@@ -16,6 +16,9 @@ public class Settings implements Serializable {
 	@Id
 	private String id;
 	
+	private String btceApiKey;
+	private String btceApiSecret;
+	
 	private Map<String, Long> lastTransactionTimes;
 	
 	public Settings() {
@@ -28,6 +31,22 @@ public class Settings implements Serializable {
 
 	public void setId(String id) {
 		this.id = id;
+	}
+	
+	public String getBtceApiKey() {
+		return btceApiKey;
+	}
+
+	public void setBtceApiKey(String apiKey) {
+		this.btceApiKey = btceApiKey;
+	}
+	
+	public String getBtceApiSecret() {
+		return btceApiSecret;
+	}
+
+	public void setBtceApiSecret(String apiSecret) {
+		this.btceApiSecret = btceApiSecret;
 	}
 
 	public Map<String, Long> getLastTransactionTimes() {

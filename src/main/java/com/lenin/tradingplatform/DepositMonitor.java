@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.OkpayClient;
-import com.lenin.tradingplatform.client.Transaction;
+import com.lenin.tradingplatform.client.FundTransaction;
 import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.User;
 import com.lenin.tradingplatform.data.repositories.UserRepository;
@@ -46,7 +46,7 @@ public class DepositMonitor {
 		Long txSince = lastTxTimes.get(currency);
 		
 		BitcoinClient client = new BitcoinClient(currency);
-		List<Transaction> transactions = client.getTransactions(txSince);
+		List<FundTransaction> transactions = client.getTransactions(txSince);
 		
 		processTransactions(transactions, settings, currency);
 		
@@ -60,33 +60,33 @@ public class DepositMonitor {
 		
 		OkpayClient client = new OkpayClient();
 		
-		List<Transaction> transactions = client.getTransactions(0L);
+		List<FundTransaction> transactions = client.getTransactions(0L);
 		
 		processTransactions(transactions, settings, "usd");
 		
 	}
 	
 	
-	private void processTransactions(List<Transaction> transactions, Settings settings, String currency) {
+	private void processTransactions(List<FundTransaction> transactions, Settings settings, String currency) {
 		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
 		Long txSince = lastTxTimes.get(currency);
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
-		Map<String, List<Transaction>> txByAccount = new HashMap<String, List<Transaction>>();
+		Map<String, List<FundTransaction>> txByAccount = new HashMap<String, List<FundTransaction>>();
 		
 		if(transactions.size() > 0) {
 			
 			Long maxTime = txSince;
 			
-			for(Transaction transaction : transactions) {
+			for(FundTransaction transaction : transactions) {
 				
 				if(transaction.getTime() > maxTime) {
 				
-					List<Transaction> accountTransactions = txByAccount.get(transaction.getAccount());
+					List<FundTransaction> accountTransactions = txByAccount.get(transaction.getAccount());
 					if(accountTransactions == null) {
-						accountTransactions = new ArrayList<Transaction>();
+						accountTransactions = new ArrayList<FundTransaction>();
 						txByAccount.put(transaction.getAccount(), accountTransactions);
 					}
 				
@@ -119,9 +119,9 @@ public class DepositMonitor {
 			Map<String, Double> userFunds = user.getFunds();
 			Double fundsLtc = userFunds.get(currency);
 			
-			List<Transaction> accountTransactions = txByAccount.get(user.getAccountName());
+			List<FundTransaction> accountTransactions = txByAccount.get(user.getAccountName());
 			
-			for(Transaction transaction : transactions) {
+			for(FundTransaction transaction : transactions) {
 				fundsLtc += transaction.getAmount();
 			}
 			
