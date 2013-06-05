@@ -38,16 +38,25 @@ public class DepositMonitor {
 	
 	public void update() {
 		
+		System.out.println("Update deposits");
+		
 		update("ltc");
 		update("usd");
 	
+		System.out.println("Done updating deposits");
+		
 	}
 	
 	
 	private void update(String currency) {
 		
+		System.out.println("Updating "+currency);
+		
 		Settings settings = getSettings(currency);
+		System.out.println("Settings: "+settings);
+		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
+		
 		
 		TransferClient client = null;
 		
@@ -58,9 +67,16 @@ public class DepositMonitor {
 		}
 		
 		if(client != null) {
+			
+			System.out.println("Getting new "+currency+" transactions");
 			getNewTransactions(settings, currency, client);
+			
+			System.out.println("Redirecting "+currency+" transactions");
 			redirectTransactions(settings, client);
+			
+			System.out.println("Processing redirected "+currency+" transactions");
 			processRedirectedTransactions(settings);
+			
 		}
 		
 	}
@@ -206,6 +222,9 @@ public class DepositMonitor {
 		}
 		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
+		if(lastTxTimes == null) {
+			lastTxTimes = new HashMap<String, Long>();
+		}
 		
 		txSince = lastTxTimes.get(currency);
 		if(txSince == null) {

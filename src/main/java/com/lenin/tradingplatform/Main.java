@@ -34,8 +34,13 @@ public class Main {
 	@Scheduled(fixedDelay = 15000)
 	public void update() {
 		
+		System.out.println("Start scheduled update");
+		
 		tradingProcess.update();
 		depositMonitor.update();
+		
+		System.out.println("Finished scheduled update");
+		
 		
 	}
 	

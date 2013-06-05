@@ -90,16 +90,26 @@ public class TradingProcess {
 	
 	public void update() {
 		
+		if(btceApi == null) {
+			return;
+		}
+		
 		try {
 			
 			long start = System.currentTimeMillis();
 			
+			System.out.println("Started trade updates "+(new Date()));
+			
+			System.out.println("Updating rates");
 			updateRates();
 		
+			System.out.println("Updating trade history");
 			updateTradeHistory();
-		
+			
+			System.out.println("Updating orders");
 			updateOrders();
 		
+			System.out.println("Updating trading sessions");
 			updateTradingSessions();
 			
 			long finish = System.currentTimeMillis();
