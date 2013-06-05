@@ -6,7 +6,7 @@ import java.util.List;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
 
-public class BitcoinClient {
+public class BitcoinClient implements TransferClient {
 	
 	
 	private String currency;
@@ -15,7 +15,9 @@ public class BitcoinClient {
 		this.currency = currency;
 	}
 	
-	public List<FundTransaction> getTransactions(Long sinceTime) {
+	public OperationResult getTransactions(Long fromTime, Long untilTime, String sourceId) {
+		
+		OperationResult opResult = new OperationResult();
 		
 		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
 		
@@ -24,7 +26,7 @@ public class BitcoinClient {
 		List<String> params = new ArrayList<String>();
 		//params.add("");
 		//params.add("9999999");
-		params.add(""+sinceTime);
+		params.add(""+fromTime);
 		
 		JSONObject result = api.exec("listtransactions", params);
 		
@@ -65,10 +67,20 @@ public class BitcoinClient {
 		transactions.add(transaction);
 		*/
 		
-		return transactions;
+		opResult.setData(transactions);
+		
+		return opResult;
 		
 	}
 	
+	
+	public OperationResult transferFunds(String fromId, String toId, Double amount) {
+		
+		OperationResult opResult = new OperationResult();
+		
+		return opResult;
+		
+	}
 	
 	private BitcoinApi createBitcoinApi(String currency) {
 		

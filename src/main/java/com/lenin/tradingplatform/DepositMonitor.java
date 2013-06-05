@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cxf.endpoint.Client;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.FundTransaction;
+import com.lenin.tradingplatform.client.OperationResult;
+import com.lenin.tradingplatform.client.TransferClient;
 import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.User;
 import com.lenin.tradingplatform.data.repositories.UserRepository;
@@ -34,71 +37,59 @@ public class DepositMonitor {
 	
 	
 	public void update() {
-		updateBitcoin("ltc");
-		updateOkpay();
+		
+		update("ltc");
+		update("usd");
+	
 	}
 	
 	
-	private void updateBitcoin(String currency) {
+	private void update(String currency) {
 		
 		Settings settings = getSettings(currency);
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
-		Long txSince = lastTxTimes.get(currency);
 		
-		BitcoinClient client = new BitcoinClient(currency);
-		List<FundTransaction> transactions = client.getTransactions(txSince);
+		TransferClient client = null;
 		
-		processTransactions(transactions, settings, currency);
+		if(currency.equals("btc") || currency.equals("ltc")) {
+			client = new BitcoinClient(currency);
+		} else if(currency.equals("usd")) {
+			client = new OkpayClient();
+		}
 		
-		
-	}
-	
-	
-	private void updateOkpay() {
-		
-		Settings settings = getSettings("usd");
-		
-		OkpayClient client = new OkpayClient();
-		
-		List<FundTransaction> transactions = client.getTransactions(0L);
-		
-		processTransactions(transactions, settings, "usd");
+		if(client != null) {
+			getNewTransactions(settings, currency, client);
+			redirectTransactions(settings, client);
+			processRedirectedTransactions(settings);
+		}
 		
 	}
 	
 	
-	private void processTransactions(List<FundTransaction> transactions, Settings settings, String currency) {
+	
+	private void getNewTransactions(Settings settings, String currency, TransferClient client) {
+		
+		String serviceWalletId = settings.getServiceOkpayWalletId(); //"OK990732954"
 		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
-		Long txSince = lastTxTimes.get(currency);
+		Long fromTime = lastTxTimes.get(currency);
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
-		Map<String, List<FundTransaction>> txByAccount = new HashMap<String, List<FundTransaction>>();
+		OperationResult opResult = client.getTransactions(0L, System.currentTimeMillis(), serviceWalletId);
+		List<FundTransaction> transactions = (List<FundTransaction>)opResult.getData();
 		
 		if(transactions.size() > 0) {
 			
-			Long maxTime = txSince;
+			Long maxTime = fromTime;
 			
 			for(FundTransaction transaction : transactions) {
-				
-				if(transaction.getTime() > maxTime) {
-				
-					List<FundTransaction> accountTransactions = txByAccount.get(transaction.getAccount());
-					if(accountTransactions == null) {
-						accountTransactions = new ArrayList<FundTransaction>();
-						txByAccount.put(transaction.getAccount(), accountTransactions);
-					}
-				
-					accountTransactions.add(transaction);
 					
-					Long time = transaction.getTime();
-					if(time > maxTime) {
-						maxTime = time;
-					}
-					
+				Long time = transaction.getTime();
+				if(time > maxTime) {
+					maxTime = time;
 				}
-				
+
 			}
 			
 			lastTxTimes.put(currency, maxTime);
@@ -109,6 +100,61 @@ public class DepositMonitor {
 			
 		}
 		
+	}
+	
+	private void redirectTransactions(Settings settings, TransferClient client) {
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Query searchTransactionsByState = new Query(Criteria.where("state").is("deposited"));
+		List<FundTransaction> transactions = mongoOps.find(searchTransactionsByState, FundTransaction.class);
+		
+		String fromWalletId = settings.getServiceOkpayWalletId();
+		String toWalletId = settings.getBtceOkpayWalletId();
+		
+		for(FundTransaction transaction : transactions) {
+			
+			Double amount = transaction.getAmount();
+			
+			OperationResult opResult = client.transferFunds(fromWalletId, toWalletId, amount);
+			
+			if(opResult.getSuccess() == 1) {
+				transaction.setState("redirected");
+				transaction.setStateInfo("Redirection succeeded");
+			} else {
+				transaction.setStateInfo("Redirection failed");
+			}
+			
+			mongoOps.save(transaction);
+			
+		}
+		
+	
+	}
+	
+	
+	private void processRedirectedTransactions(Settings settings) {
+		
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Query searchTransactionsByState = new Query(Criteria.where("state").is("redirected"));
+		List<FundTransaction> transactions = mongoOps.find(searchTransactionsByState, FundTransaction.class);
+		
+		Map<String, List<FundTransaction>> txByAccount = new HashMap<String, List<FundTransaction>>();
+		
+		for(FundTransaction transaction : transactions) {
+				
+			List<FundTransaction> accountTransactions = txByAccount.get(transaction.getAccount());
+			if(accountTransactions == null) {
+				accountTransactions = new ArrayList<FundTransaction>();
+				txByAccount.put(transaction.getAccount(), accountTransactions);
+			}
+				
+			accountTransactions.add(transaction);			
+				
+		}
+		
 		List<String> accountNames = new ArrayList<String>(txByAccount.keySet());
 		
 		Query searchUsersByAccounts = new Query(Criteria.where("accountName").in(accountNames));
@@ -117,15 +163,16 @@ public class DepositMonitor {
 		for(User user : users) {
 			
 			Map<String, Double> userFunds = user.getFunds();
-			Double fundsLtc = userFunds.get(currency);
 			
 			List<FundTransaction> accountTransactions = txByAccount.get(user.getAccountName());
 			
 			for(FundTransaction transaction : transactions) {
-				fundsLtc += transaction.getAmount();
+				String currency = transaction.getCurrency();
+				Double currencyFunds = userFunds.get(currency);
+				currencyFunds += transaction.getAmount();
+				userFunds.put(currency, currencyFunds);
 			}
 			
-			userFunds.put(currency, fundsLtc);
 			user.setFunds(userFunds);
 			
 		}

@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -16,12 +17,14 @@ import org.datacontract.schemas._2004._07.okpayapi.ArrayOfTransactionInfo;
 import org.datacontract.schemas._2004._07.okpayapi.HistoryInfo;
 import org.datacontract.schemas._2004._07.okpayapi.TransactionInfo;
 
-public class OkpayClient {
+public class OkpayClient implements TransferClient {
 	
 	public OkpayClient() {
 	}
 	
-	public List<FundTransaction> getTransactions(Long sinceTime) {
+	public OperationResult getTransactions(Long fromTime, Long untilTime, String sourceId) {
+		
+		OperationResult opResult = new OperationResult();
 		
 		Date now = new Date();
 		
@@ -46,8 +49,9 @@ public class OkpayClient {
 			
 			System.out.println(unhashed+"/"+hashed);
 			
+			String walletId = sourceId;
 			IOkPayAPI api = new OkPayAPIImplementation().getBasicHttpBindingIOkPayAPI();
-			HistoryInfo historyInfo = api.transactionHistory("OK990732954", hashed, "2013-04-20 00:00:00", "2013-04-25 00:00:00", 10, 1);
+			HistoryInfo historyInfo = api.transactionHistory(walletId, hashed, "2013-04-20 00:00:00", "2013-04-25 00:00:00", 10, 1);
 			
 			List<TransactionInfo> txInfos = historyInfo.getTransactions().getValue().getTransactionInfo();
 			
@@ -78,7 +82,17 @@ public class OkpayClient {
 		transactions.add(transaction);
 		*/
 		
-		return transactions;
+		opResult.setData(transactions);
+		return opResult;
+		
+	}
+	
+	
+	public OperationResult transferFunds(String fromWalletId, String toWalletId, Double amount) {
+		
+		OperationResult opResult = new OperationResult();
+		
+		return opResult;
 		
 	}
 	

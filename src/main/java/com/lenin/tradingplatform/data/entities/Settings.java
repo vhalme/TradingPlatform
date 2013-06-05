@@ -19,6 +19,9 @@ public class Settings implements Serializable {
 	private String btceApiKey;
 	private String btceApiSecret;
 	
+	private String serviceOkpayWalletId;
+	private String btceOkpayWalletId;
+	
 	private Map<String, Long> lastTransactionTimes;
 	
 	public Settings() {
@@ -55,6 +58,22 @@ public class Settings implements Serializable {
 
 	public void setLastTransactionTimes(Map<String, Long> lastTransactionTimes) {
 		this.lastTransactionTimes = lastTransactionTimes;
+	}
+
+	public String getServiceOkpayWalletId() {
+		return serviceOkpayWalletId;
+	}
+
+	public void setServiceOkpayWalletId(String serviceOkpayWalletId) {
+		this.serviceOkpayWalletId = serviceOkpayWalletId;
+	}
+
+	public String getBtceOkpayWalletId() {
+		return btceOkpayWalletId;
+	}
+
+	public void setBtceOkpayWalletId(String btceOkpayWalletId) {
+		this.btceOkpayWalletId = btceOkpayWalletId;
 	}
 
 	

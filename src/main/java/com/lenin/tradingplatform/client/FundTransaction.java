@@ -6,6 +6,8 @@ public class FundTransaction {
 	private String id;
 	
 	private String type;
+	private String state;
+	private String stateInfo;
 	
 	private String account;
 	private String currency;
@@ -32,6 +34,23 @@ public class FundTransaction {
 
 	public void setType(String type) {
 		this.type = type;
+	}
+	
+	public String getState() {
+		return state;
+	}
+
+	public void setState(String state) {
+		this.state = state;
+	}
+	
+	
+	public String getStateInfo() {
+		return stateInfo;
+	}
+
+	public void setStateInfo(String stateInfo) {
+		this.stateInfo = stateInfo;
 	}
 
 	public String getAccount() {
