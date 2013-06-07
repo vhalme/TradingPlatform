@@ -41,6 +41,7 @@ public class BitcoinClient implements TransferClient {
 				
 				BitcoinTransaction	transaction = new BitcoinTransaction();
 				transaction.setType("deposit");
+				transaction.setState("deposited");
 				transaction.setCurrency(currency);
 				transaction.setAccount(txJson.getString("account"));
 				transaction.setAddress(txJson.getString("address"));

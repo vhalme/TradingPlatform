@@ -33,6 +33,19 @@ public class OkpayClient implements TransferClient {
 		String fmtDate = format.format(now);
 		
 		String unhashed = "Bp3m8TRc25EsWt69Pre7F4Hig:"+fmtDate;
+		//String unhashed = "Ms49Nfk7Q2GeXz36HjRa5q8LK:"+fmtDate;
+		
+		SimpleDateFormat paramDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		
+		Date fromDate = new Date((fromTime*1000L) + 1000L);
+		String fromParam = paramDateFormat.format(fromDate); //"2013-04-20 00:00:00"
+		
+		Date untilDate = new Date(untilTime*1000L);
+		String untilParam = paramDateFormat.format(untilDate);  //"2013-04-25 00:00:00"
+		
+		System.out.println(fromParam+"/"+untilParam);
+		
+		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
 		
 		try {
 			
@@ -50,19 +63,68 @@ public class OkpayClient implements TransferClient {
 			System.out.println(unhashed+"/"+hashed);
 			
 			String walletId = sourceId;
+			System.out.println("Read transactions for "+walletId);
+			
 			IOkPayAPI api = new OkPayAPIImplementation().getBasicHttpBindingIOkPayAPI();
-			HistoryInfo historyInfo = api.transactionHistory(walletId, hashed, "2013-04-20 00:00:00", "2013-04-25 00:00:00", 10, 1);
+			HistoryInfo historyInfo = api.transactionHistory(walletId, hashed, fromParam, untilParam, 10, 1);
 			
 			List<TransactionInfo> txInfos = historyInfo.getTransactions().getValue().getTransactionInfo();
 			
 			System.out.println("tx info size: "+txInfos.size());
 			
+			
 			for(TransactionInfo txInfo : txInfos) {
-				System.out.println("Amount: "+txInfo.getAmount());
-				System.out.println("Net amount: "+txInfo.getNet());
-				System.out.println("Sender: "+txInfo.getSender().getValue().getName().getValue());
-				System.out.println("Comment: "+txInfo.getComment().getValue());
-				System.out.println("Invoice: "+txInfo.getInvoice().getValue());
+				
+				String txDateStr = txInfo.getDate().getValue();
+				Date txDate = paramDateFormat.parse(txDateStr);
+				Long txTime = txDate.getTime()/1000L;
+				
+				Double txAmount = txInfo.getAmount().doubleValue();
+				Double txNetAmount = txInfo.getNet().doubleValue();
+				String txCurrency = txInfo.getCurrency().getValue();
+				
+				String txSenderName = txInfo.getSender().getValue().getName().getValue();
+				String txSenderAccount = ""+txInfo.getSender().getValue().getAccountID();
+				String txSenderWallet = txInfo.getSender().getValue().getWalletID().getValue();
+				
+				String txReceiverName = txInfo.getReceiver().getValue().getName().getValue();
+				String txReceiverAccount = ""+txInfo.getReceiver().getValue().getAccountID();
+				String txReceiverWallet = txInfo.getReceiver().getValue().getWalletID().getValue();
+				
+				String txComment = txInfo.getComment().getValue();
+				String txInvoice = txInfo.getInvoice().getValue();
+				
+				OkpayTransaction transaction = new OkpayTransaction();
+				transaction.setType("deposit");
+				transaction.setState("deposited");
+				transaction.setAmount(txAmount);
+				transaction.setComment(txComment);
+				transaction.setCurrency(txCurrency.toLowerCase());
+				transaction.setInvoice(txInvoice);
+				transaction.setNetAmount(txNetAmount);
+				
+				transaction.setReceiverAccountId(txReceiverAccount);
+				transaction.setReceiverName(txReceiverName);
+				transaction.setReceiverWalletId(txReceiverWallet);
+				
+				transaction.setSenderAccountId(txSenderAccount);
+				transaction.setSenderName(txSenderName);
+				transaction.setSenderWalletId(txSenderWallet);
+				
+				transaction.setTime(txTime);
+				
+				System.out.println(txDateStr);
+				System.out.println("Amount: "+txAmount);
+				System.out.println("Net amount: "+txNetAmount);
+				System.out.println("Sender: "+txSenderName);
+				System.out.println("Comment: "+txComment);
+				System.out.println("Invoice: "+txInvoice);
+				System.out.println("Currency: "+txCurrency);
+				
+				if(txAmount > 0) {
+					transactions.add(transaction);
+				}
+				
 			}
 			
 		
@@ -70,7 +132,7 @@ public class OkpayClient implements TransferClient {
 			e.printStackTrace();
 		}
 		
-		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
+		
 		
 		/*
 		Transaction transaction = new Transaction();
@@ -91,6 +153,8 @@ public class OkpayClient implements TransferClient {
 	public OperationResult transferFunds(String fromWalletId, String toWalletId, Double amount) {
 		
 		OperationResult opResult = new OperationResult();
+		
+		System.out.println("TRANSFER from "+fromWalletId+" to "+toWalletId+", Amount "+amount);
 		
 		return opResult;
 		

@@ -92,7 +92,7 @@ public class DepositMonitor {
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
-		OperationResult opResult = client.getTransactions(0L, System.currentTimeMillis(), serviceWalletId);
+		OperationResult opResult = client.getTransactions(fromTime, System.currentTimeMillis()/1000L, serviceWalletId);
 		List<FundTransaction> transactions = (List<FundTransaction>)opResult.getData();
 		
 		if(transactions.size() > 0) {
@@ -100,8 +100,11 @@ public class DepositMonitor {
 			Long maxTime = fromTime;
 			
 			for(FundTransaction transaction : transactions) {
-					
+				
 				Long time = transaction.getTime();
+				
+				System.out.println(time+" <> "+maxTime);
+				
 				if(time > maxTime) {
 					maxTime = time;
 				}
@@ -132,7 +135,7 @@ public class DepositMonitor {
 			
 			Double amount = transaction.getAmount();
 			
-			OperationResult opResult = client.transferFunds(fromWalletId, toWalletId, amount);
+			OperationResult opResult = client.transferFunds(fromWalletId, toWalletId/*OK847848324*/, amount);
 			
 			if(opResult.getSuccess() == 1) {
 				transaction.setState("redirected");
