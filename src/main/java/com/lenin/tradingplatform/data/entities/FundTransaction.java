@@ -1,8 +1,14 @@
-package com.lenin.tradingplatform.client;
+package com.lenin.tradingplatform.data.entities;
 
-public class FundTransaction {
+import java.io.Serializable;
+
+import org.springframework.data.annotation.Id;
+
+public class FundTransaction implements Serializable {
 	
+	private static final long serialVersionUID = -3783809470171649438L;
 	
+	@Id
 	private String id;
 	
 	private String type;

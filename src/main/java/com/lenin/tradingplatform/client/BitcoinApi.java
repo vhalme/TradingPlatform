@@ -37,7 +37,7 @@ public class BitcoinApi {
 		
 	}
 
-	public JSONObject exec(String method, List<String> params) {
+	public JSONObject exec(String method, List<Object> params) {
 
 		
 		DefaultHttpClient httpclient = new DefaultHttpClient();

@@ -1,4 +1,7 @@
-package com.lenin.tradingplatform.client;
+package com.lenin.tradingplatform.data.entities;
+
+
+import com.lenin.tradingplatform.data.entities.FundTransaction;
 
 public class OkpayTransaction extends FundTransaction {
 

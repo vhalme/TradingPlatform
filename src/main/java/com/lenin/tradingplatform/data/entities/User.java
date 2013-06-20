@@ -31,6 +31,7 @@ public class User implements Serializable {
 	private Map<String, String> addresses = new HashMap<String, String>();
 	
 	private Map<String, Double> funds = new HashMap<String, Double>();
+	private Map<String, Map<String, Double>> activeFunds = new HashMap<String, Map<String, Double>>();
 	
 	@DBRef
 	private List<TradingSession> tradingSessions = new ArrayList<TradingSession>();
@@ -90,6 +91,14 @@ public class User implements Serializable {
 
 	public void setFunds(Map<String, Double> funds) {
 		this.funds = funds;
+	}
+	
+	public Map<String, Map<String, Double>> getActiveFunds() {
+		return activeFunds;
+	}
+
+	public void setActiveFunds(Map<String, Map<String, Double>> activeFunds) {
+		this.activeFunds = activeFunds;
 	}
 
 	public List<TradingSession> getTradingSessions() {

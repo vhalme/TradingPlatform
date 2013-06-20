@@ -1,14 +1,25 @@
-package com.lenin.tradingplatform.client;
+package com.lenin.tradingplatform.data.entities;
+
 
 public class BitcoinTransaction extends FundTransaction {
 
+	private String txId;
 	private String address;
+	private String category;
 	private Integer confirmations;
 	
 	public BitcoinTransaction() {
 		
 	}
 	
+	public String getTxId() {
+		return txId;
+	}
+
+	public void setTxId(String txId) {
+		this.txId = txId;
+	}
+
 	public String getAddress() {
 		return address;
 	}
@@ -17,6 +28,14 @@ public class BitcoinTransaction extends FundTransaction {
 		this.address = address;
 	}
 	
+	public String getCategory() {
+		return category;
+	}
+
+	public void setCategory(String category) {
+		this.category = category;
+	}
+
 	public Integer getConfirmations() {
 		return confirmations;
 	}
