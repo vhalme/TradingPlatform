@@ -64,23 +64,23 @@ public class DepositMonitor {
 		
 		if(currency.equals("btc") || currency.equals("ltc")) {
 			
-			System.out.println("Updating "+currency+" transactions from network");
+			processPendingTransactions(settings, BitcoinTransaction.class, "transferReqBtce");
+			processPendingTransactions(settings, BitcoinTransaction.class, "withdrawalReq");
+			
 			updateBitcoinTransactions(currency);
 			
-			System.out.println("Accounting confirmed "+currency+" transactions");
-			accountConfirmedTransactions(settings, BitcoinTransaction.class, "confirmed");
-			accountConfirmedTransactions(settings, BitcoinTransaction.class, "confirmedAddBtce");
+			processPendingTransactions(settings, BitcoinTransaction.class, "confirmed");
+			processPendingTransactions(settings, BitcoinTransaction.class, "confirmedAddBtce");
+			processPendingTransactions(settings, BitcoinTransaction.class, "confirmedWithdrawal");
 			
-			System.out.println("Processing transfer requests");
-			transferBitcoinFunds(currency);
-		
+			processTransferRequests(currency, "transferReqBtce");
+			processTransferRequests(currency, "withdrawalReq");
+			
 		} else if(currency.equals("usd")) {
 			
-			System.out.println("Get new "+currency+" transactions from OKPay");
 			getNewOkpayTransactions(settings, currency);
 			
-			System.out.println("Accounting confirmed "+currency+" transactions");
-			accountConfirmedTransactions(settings, OkpayTransaction.class, "confirmed");
+			processPendingTransactions(settings, OkpayTransaction.class, "confirmed");
 			
 		}
 		
@@ -146,6 +146,13 @@ public class DepositMonitor {
 					if(tx.getConfirmations() >= 6) {
 						existingTx.setState("confirmedAddBtce");
 						existingTx.setStateInfo("Confirmed by BTC-E. Calculating available BTC-E funds.");
+					}
+					
+				} if(existingTx.getState().equals("withdrawing") || existingTx.getState().equals("withdrawReq")) {
+					
+					if(tx.getConfirmations() > 0) {
+						existingTx.setState("confirmedWithdrawal");
+						existingTx.setStateInfo("Withdrawal confirmed and completed");
 					}
 					
 				} else if(existingTx.getState().equals("deposited")) {
@@ -214,7 +221,7 @@ public class DepositMonitor {
 	}
 	
 	
-	private void accountConfirmedTransactions(Settings settings, Class transactionClass, String state) {
+	private void processPendingTransactions(Settings settings, Class transactionClass, String state) {
 		
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
@@ -252,30 +259,64 @@ public class DepositMonitor {
 				String currency = transaction.getCurrency();
 				Double currencyFunds = userFunds.get(currency);
 				
-				Double addFunds = transaction.getAmount();
+				Double txAmount = transaction.getAmount();
 				
 				String type = transaction.getType();
+				String txState = transaction.getState();
+				
+				String nextState = txState;
 				
 				if(type.equals("addToBtce")) {
 					
-					Map<String, Map<String, Double>> activeFunds = user.getActiveFunds();
-					Map<String, Double> activeBtceFunds = activeFunds.get("btce");
-					Double activeCurrencyFunds = activeBtceFunds.get(currency);
+					if(txState.equals("confirmedAddBtce")) {
+						
+						Map<String, Map<String, Double>> activeFunds = user.getActiveFunds();
+						Map<String, Double> activeBtceFunds = activeFunds.get("btce");
+						Double activeCurrencyFunds = activeBtceFunds.get(currency);
 					
-					activeCurrencyFunds += addFunds;
+						activeCurrencyFunds += txAmount;
 					
-					activeBtceFunds.put(currency, activeCurrencyFunds);
-					activeFunds.put("btce", activeBtceFunds);
-					user.setActiveFunds(activeFunds);
+						activeBtceFunds.put(currency, activeCurrencyFunds);
+						activeFunds.put("btce", activeBtceFunds);
+						user.setActiveFunds(activeFunds);
+						
+						nextState = "completed";
+						
+					} else if(txState.equals("transferReqBtce")) {
 					
-					addFunds = -addFunds;
+						currencyFunds -= txAmount;
+						userFunds.put(currency, currencyFunds);
+						
+					}
+					
+				} else if(type.equals("withdrawal")) {
+					
+					if(txState.equals("withdrawalReq")) {
+						
+						currencyFunds -= txAmount;
+						userFunds.put(currency, currencyFunds);
+					
+					} else if(txState.equals("confirmedWithdrawal")) {
+						
+						nextState = "completed";
+						
+					}
+					
+				} else if(type.equals("deposit")) {
+					
+					
+					if(txState.equals("confirmed")) {
+						
+						currencyFunds += txAmount;
+						userFunds.put(currency, currencyFunds);
+						
+						nextState = "completed";
+						
+					}
 					
 				}
 				
-				currencyFunds += addFunds;
-				userFunds.put(currency, currencyFunds);
-				
-				transaction.setState("completed");
+				transaction.setState(nextState);
 				mongoOps.save(transaction);
 				
 			}
@@ -291,6 +332,58 @@ public class DepositMonitor {
 	}
 	
 	
+	private void processTransferRequests(String currency, String state) {
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Query searchTransactionsByState = new Query(Criteria.where("state").is(state));
+		List<BitcoinTransaction> transactions = mongoOps.find(searchTransactionsByState, BitcoinTransaction.class);
+		
+		BitcoinClient client = new BitcoinClient(currency);
+		
+		for(BitcoinTransaction transaction : transactions) {
+			
+			String nextState = null;
+			String nextStateInfo = null;
+			
+			if(transaction.getType().equals("addToBtce")) {
+				nextState = "transferBtce";
+				nextStateInfo = "Transfer succeeded. BTC-E requires 6 confirmations.";
+			} else if(transaction.getType().equals("addToMtgox")) {
+				nextState = "transferMtgox";
+				nextStateInfo = "Transfer succeeded. Mt. Gox requires 6 confirmations.";
+			} if(transaction.getType().equals("withdrawal")) {
+				nextState = "withdrawing";
+				nextStateInfo = "Transfer succeeded. Waiting for network confirmation.";
+			}
+			
+			if(nextState != null) {
+				
+				String account = transaction.getAccount();
+				String address = transaction.getAddress();
+				Double amount = transaction.getAmount();
+			
+				OperationResult opResult = client.transferFunds(account, address, amount);
+			
+				if(opResult.getSuccess() == 1) {
+					transaction.setState(nextState);
+					transaction.setTxId((String)opResult.getData());
+					transaction.setStateInfo(nextStateInfo);
+				} else {
+					transaction.setState(nextState+"Failed");
+					transaction.setStateInfo("Failed to send payment.");
+				}
+			
+				mongoOps.save(transaction);
+			
+			}
+			
+		}
+		
+	
+	}
+	
+
 	private Settings getSettings(String currency) {
 		
 		Long txSince = 0L;
@@ -328,57 +421,6 @@ public class DepositMonitor {
 		return settings;
 		
 	}
-	
-	
-	
-	private void transferBitcoinFunds(String currency) {
-		
-		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
-		
-		Query searchTransactionsByState = new Query(Criteria.where("state").is("transferReqBtce"));
-		List<BitcoinTransaction> transactions = mongoOps.find(searchTransactionsByState, BitcoinTransaction.class);
-		
-		BitcoinClient client = new BitcoinClient(currency);
-		
-		for(BitcoinTransaction transaction : transactions) {
-			
-			String nextState = null;
-			String nextStateInfo = null;
-			
-			if(transaction.getType().equals("addToBtce")) {
-				nextState = "transferBtce";
-				nextStateInfo = "Transfer succeeded. BTC-E requires 6 confirmations.";
-			} else if(transaction.getType().equals("addToMtgox")) {
-				nextState = "transferMtgox";
-				nextStateInfo = "Transfer succeeded. Mt. Gox requires 6 confirmations.";
-			}
-			
-			if(nextState != null) {
-				
-				String account = transaction.getAccount();
-				String address = transaction.getAddress();
-				Double amount = transaction.getAmount();
-			
-				OperationResult opResult = client.transferFunds(account, address, amount);
-			
-				if(opResult.getSuccess() == 1) {
-					transaction.setState(nextState);
-					transaction.setTxId((String)opResult.getData());
-					transaction.setStateInfo(nextStateInfo);
-				} else {
-					transaction.setState(nextState+"Failed");
-					transaction.setStateInfo("Failed to send payment.");
-				}
-			
-				mongoOps.save(transaction);
-			
-			}
-			
-		}
-		
-	
-	}
-	
 
-	
+
 }
