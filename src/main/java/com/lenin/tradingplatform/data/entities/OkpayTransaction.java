@@ -1,7 +1,6 @@
 package com.lenin.tradingplatform.data.entities;
 
 
-import com.lenin.tradingplatform.data.entities.FundTransaction;
 
 public class OkpayTransaction extends FundTransaction {
 
@@ -21,7 +20,7 @@ public class OkpayTransaction extends FundTransaction {
 	public OkpayTransaction() {
 		
 	}
-
+    
 	public String getReceiverName() {
 		return receiverName;
 	}

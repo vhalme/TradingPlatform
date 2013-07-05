@@ -20,6 +20,7 @@ public class TradingSession implements Serializable {
 	
 	private Boolean live = false;
 	
+	private String service;
 	private String pair;
 	private String currencyLeft;
 	private String currencyRight;
@@ -55,6 +56,14 @@ public class TradingSession implements Serializable {
 		this.live = live;
 	}
 	
+	public String getService() {
+		return service;
+	}
+
+	public void setService(String service) {
+		this.service = service;
+	}
+
 	public String getCurrencyLeft() {
 		return currencyLeft;
 	}

@@ -56,7 +56,7 @@ public class AutoTrader {
 			client.reverseTrade(reversibleSell, false);
 		}
 		
-		//System.out.println("autotrading...");
+		System.out.println("autotrading..."+reversibleBuys.size());
 		
 		if(reversibleBuys.size() == 0 && reversibleSells.size() == 0) {
 			
@@ -166,7 +166,7 @@ public class AutoTrader {
 	private List<Order> getReversibleSells() {
    		
 		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "sell");
-		//System.out.println(orders);
+		System.out.println(orders);
 		
 		Double calculatedBuyAmount = 0.0;
 		
@@ -177,7 +177,7 @@ public class AutoTrader {
 			Double rateVal = order.getRate();
 			Double amountVal = order.getAmount();
 			
-			//System.out.println(tradingSession.getRate().getBuy()+" <= ("+rateVal+" - "+tradingSession.getProfitTarget()+")");
+			System.out.println(tradingSession.getRate().getBuy()+" <= "+(rateVal - tradingSession.getAutoTradingOptions().getSellThreshold()));
 			
 			Boolean isFilled = order.getFilledAmount() >= order.getBrokerAmount();
 			
@@ -191,7 +191,7 @@ public class AutoTrader {
 				if(tradingSession.getFundsLeft() > (newBuyAmount * actualBuyRate)) {
 					calculatedBuyAmount = newBuyAmount;
 					reversibleOrders.add(order);
-					//System.out.println("buy "+amountVal+" for "+(amountVal * actualBuyRate));
+					System.out.println("buy "+amountVal+" for "+(amountVal * actualBuyRate));
 				} else {
 					//System.out.println("OUT OF USD!");
 					break;
@@ -209,6 +209,7 @@ public class AutoTrader {
 	private List<Order> getReversibleBuys() {
    		
 		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "buy");
+		System.out.println(orders);
 		
 		Double calculatedSellAmount = 0.0;
 		
@@ -221,6 +222,8 @@ public class AutoTrader {
 			
 			Boolean isFilled = order.getFilledAmount() >= order.getBrokerAmount();
 			
+			System.out.println(tradingSession.getRate().getSell() +" >= "+ (rateVal + tradingSession.getAutoTradingOptions().getBuyThreshold()));
+					
 			if(isFilled && tradingSession.getRate().getSell() >= (rateVal + tradingSession.getAutoTradingOptions().getBuyThreshold())) {
 				
 				Double actualSellRate = client.actualTradeRate("sell");
@@ -229,7 +232,7 @@ public class AutoTrader {
 				if(tradingSession.getFundsRight() > newSellAmount) {
 					calculatedSellAmount = newSellAmount;
 					reversibleOrders.add(order);
-					//System.out.println("sell "+amountVal+" for "+(amountVal * actualSellRate));
+					System.out.println("sell "+amountVal+" for "+(amountVal * actualSellRate));
 				} else {
 					//System.out.println("OUT OF LTC!");
 					break;

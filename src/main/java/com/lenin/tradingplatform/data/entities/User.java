@@ -24,8 +24,8 @@ public class User implements Serializable {
 	private String email;
 	private String username;
 	private String password;
-	
 	private String authToken;
+	private Long lastActivity;
 	
 	private String accountName;
 	private Map<String, String> addresses = new HashMap<String, String>();
@@ -123,6 +123,15 @@ public class User implements Serializable {
 
 	public void setAuthToken(String authToken) {
 		this.authToken = authToken;
+	}
+	
+	
+	public Long getLastActivity() {
+		return lastActivity;
+	}
+
+	public void setLastActivity(Long lastActivity) {
+		this.lastActivity = lastActivity;
 	}
 
 	public Double getFunds(String fund) {

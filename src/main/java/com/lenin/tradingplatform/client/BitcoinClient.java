@@ -1,26 +1,16 @@
 package com.lenin.tradingplatform.client;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
-import org.springframework.data.mongodb.core.MongoOperations;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 
 import com.lenin.tradingplatform.data.entities.BitcoinTransaction;
-import com.lenin.tradingplatform.data.entities.BitcoinTransaction;
 import com.lenin.tradingplatform.data.entities.FundTransaction;
-import com.lenin.tradingplatform.data.entities.FundTransaction;
-import com.lenin.tradingplatform.data.entities.User;
+
 
 public class BitcoinClient {
-	
 	
 	private String currency;
 	
@@ -39,16 +29,17 @@ public class BitcoinClient {
 		BitcoinApi api = createBitcoinApi(currency);
 		
 		List<Object> params = new ArrayList<Object>();
-		params.add(account);
+		//params.add(account);
 		//params.add(""+number);
 		//params.add(""+from);
 		
 		JSONObject result = api.exec("listtransactions", params);
+		//System.out.println(result);
 		
 		try {
 			
 			JSONArray data = result.getJSONArray("result");
-			System.out.println(data);
+			//System.out.println(data);
 			
 			for(int i=0; i<data.length(); i++) {
 				
@@ -65,19 +56,19 @@ public class BitcoinClient {
 				transaction.setTime(txJson.getLong("time"));
 				transaction.setCategory(txJson.getString("category"));
 				
-				System.out.println("transaction for "+transaction.getAmount()+" detected for "+transaction.getAccount()+" at "+transaction.getTime());
+				//System.out.println("transaction for "+transaction.getAmount()+" detected for "+transaction.getAccount()+" at "+transaction.getTime());
 				//System.out.println(transaction.getTime()+" >= "+fromTime);
 				
 				transactions.add(transaction);
 				
 			}
 			
+			opResult.setSuccess(1);
+			opResult.setData(transactions);
 			
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
-		
-		opResult.setData(transactions);
 		
 		return opResult;
 		
@@ -87,8 +78,11 @@ public class BitcoinClient {
 	public OperationResult transferFunds(String fromAccount, String toAddress, Double amount) {
 		
 		OperationResult opResult = new OperationResult();
+		opResult.setSuccess(0);
 		
 		BitcoinApi api = createBitcoinApi(currency);
+		
+		amount = amount - api.getTransferFee();
 		
 		List<Object> params = new ArrayList<Object>();
 		params.add(fromAccount);
@@ -102,50 +96,26 @@ public class BitcoinClient {
 			try {
 				
 				String txId = result.getString("result");
+				System.out.println("Transfer result txId: "+txId);
 				
-				opResult.setData(txId);
+				if(txId != null && !txId.equals("null")) {
+					opResult.setData(txId);
+					opResult.setSuccess(1);
+				} else {
+					opResult.setSuccess(-1);
+				}
 				
 			} catch(Exception e) {
 				e.printStackTrace();
 			}
 		
+		} else {
+			
+			opResult.setSuccess(-2);
+			
 		}
 		
-		/*
-		try {
-			
-			JSONArray data = result.getJSONArray("result");
-			System.out.println(data);
-			
-			for(int i=0; i<data.length(); i++) {
-				
-				JSONObject txJson = data.getJSONObject(i);
-				
-				BitcoinTransaction	transaction = new BitcoinTransaction();
-				transaction.setType("deposit");
-				transaction.setCurrency(currency);
-				transaction.setTxId(txJson.getString("txid"));
-				transaction.setAccount(txJson.getString("account"));
-				transaction.setAddress(txJson.getString("address"));
-				transaction.setAmount(txJson.getDouble("amount"));
-				transaction.setConfirmations(txJson.getInt("confirmations"));
-				transaction.setTime(txJson.getLong("time"));
-				transaction.setCategory(txJson.getString("category"));
-				
-				System.out.println("transaction for "+transaction.getAmount()+" detected for "+transaction.getAccount()+" at "+transaction.getTime());
-				//System.out.println(transaction.getTime()+" >= "+fromTime);
-				
-				transactions.add(transaction);
-				
-			}
-			
-			
-		} catch(Exception e) {
-			e.printStackTrace();
-		}
-		*/
 		
-		opResult.setSuccess(1);
 		return opResult;
 		
 	}
@@ -155,7 +125,11 @@ public class BitcoinClient {
 		BitcoinApi api = null;
 		
 		if(currency.equals("ltc")) {
-			api = new BitcoinApi("127.0.0.1", 8332, "fluxltc1", "fLuxThuyu1eP");
+			api = new BitcoinApi("82.196.14.26", 8332, "fluxltc1", "fLuxThuyu1eP");
+			api.setTransferFee(0.01);
+		} else if(currency.equals("btc")) {
+			api = new BitcoinApi("82.196.8.147", 9332, "fluxltc1", "fLuxThuyu1eP");
+			api.setTransferFee(0.0004);
 		}
 		
 		return api;

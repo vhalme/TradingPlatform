@@ -481,6 +481,7 @@ public class TradingProcess {
 			if(tradingSession.getAutoTradingOptions().getTradeAuto() == true && tradingSession.getRate().getLast() != 0.0) {
 				
 				TradingClient tradingClient = new TradingClient(tradingSession, tradingSessionRepository, orderRepository, tradeRepository);
+				tradingClient.setBtceApi(btceApi);
 				
 				AutoTrader autoTrader = new AutoTrader(tradingClient);
 				autoTrader.autoTrade();

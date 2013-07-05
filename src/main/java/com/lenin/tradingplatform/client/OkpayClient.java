@@ -26,7 +26,7 @@ import com.lenin.tradingplatform.data.entities.OkpayTransaction;
 
 import com.lenin.tradingplatform.data.entities.FundTransaction;
 
-public class OkpayClient implements TransferClient {
+public class OkpayClient {
 	
 	public OkpayClient() {
 	}
@@ -43,7 +43,7 @@ public class OkpayClient implements TransferClient {
 		Date untilDate = new Date(untilTime*1000L);
 		String untilParam = paramDateFormat.format(untilDate);  //"2013-04-25 00:00:00"
 		
-		System.out.println(fromParam+"/"+untilParam);
+		//System.out.println(fromParam+"/"+untilParam);
 		
 		List<FundTransaction> transactions = new ArrayList<FundTransaction>();
 		
@@ -56,7 +56,10 @@ public class OkpayClient implements TransferClient {
 			System.out.println("Read transactions for "+walletId);
 			
 			IOkPayAPI api = new OkPayAPIImplementation().getBasicHttpBindingIOkPayAPI();
+			System.err.println("SOAP api created: "+api);
+			
 			HistoryInfo historyInfo = api.transactionHistory(walletId, hashed, fromParam, untilParam, 10, 1);
+			System.err.println("SOAP call performed, result: "+historyInfo);
 			
 			List<TransactionInfo> txInfos = historyInfo.getTransactions().getValue().getTransactionInfo();
 			
@@ -92,7 +95,14 @@ public class OkpayClient implements TransferClient {
 					txAccount = txComment;
 				}
 				
-				System.out.println("txComment="+txComment+"/txInvoice="+txInvoice+"/txAccount="+txAccount);
+				if(txAccount != null) {
+					int dashIndex = txAccount.indexOf("_");
+					if(dashIndex != -1) {
+						txAccount = txAccount.substring(dashIndex+1);
+					}
+				}
+				
+				//System.out.println("txComment="+txComment+"/txInvoice="+txInvoice+"/txAccount="+txAccount);
 				
 				OkpayTransaction transaction = new OkpayTransaction();
 				transaction.setType("deposit");
@@ -114,6 +124,7 @@ public class OkpayClient implements TransferClient {
 				
 				transaction.setTime(txTime);
 				
+				/*
 				System.out.println(txDateStr);
 				System.out.println("Amount: "+txAmount);
 				System.out.println("Net amount: "+txNetAmount);
@@ -124,6 +135,7 @@ public class OkpayClient implements TransferClient {
 				System.out.println("Currency: "+txCurrency);
 				
 				System.out.println("OPNAME: "+txInfo.getOperationName().getValue()+", STATUS: "+txInfo.getStatus().value()+", FEES: "+txInfo.getFees());
+				*/
 				
 				if(txReceiverWallet.equals(sourceId)) {
 					transaction.setAmount(Math.abs(txNetAmount));
@@ -156,30 +168,31 @@ public class OkpayClient implements TransferClient {
 	}
 	
 	
-	public OperationResult transferFunds(String fromWalletId, String toWalletId, Double amount) {
+	public OperationResult transferFunds(String fromWalletId, String toWalletId, String toAccount, Double amount) {
 		
 		OperationResult opResult = new OperationResult();
 		opResult.setSuccess(0);
 		
-		System.out.println("TRANSFER from "+fromWalletId+" to "+toWalletId+", Amount "+amount);
+		//System.out.println("TRANSFER from "+fromWalletId+" to "+toWalletId+", Amount "+amount);
 		
 		try {
 			
-			/*
 			String hashed = getHashedKey("Bp3m8TRc25EsWt69Pre7F4Hig");
 			//String hashed = getHashedKey("Ms49Nfk7Q2GeXz36HjRa5q8LK");
 			
+			String invoice = System.currentTimeMillis()+"_"+toAccount;
+			
 			IOkPayAPI api = new OkPayAPIImplementation().getBasicHttpBindingIOkPayAPI();
-			TransactionInfo txInfo = api.sendMoney(fromWalletId, hashed, toWalletId, "USD", new BigDecimal(amount), "Transfer from "+fromWalletId, false, "No Invoice");
+			TransactionInfo txInfo = api.sendMoney(fromWalletId, hashed, toWalletId, "USD", new BigDecimal(amount), "Transfer from "+fromWalletId, true, invoice);
 			
 			if(txInfo != null) {
 				opResult.setSuccess(1);
 			}
 			
-			System.out.println("tx info: "+txInfo);
+			//System.out.println("tx info: "+txInfo);
 			
-			System.out.println("OPNAME: "+txInfo.getOperationName().getValue()+", STATUS: "+txInfo.getStatus().value()+", FEES: "+txInfo.getFees());
-			*/
+			//System.out.println("OPNAME: "+txInfo.getOperationName().getValue()+", STATUS: "+txInfo.getStatus().value()+", FEES: "+txInfo.getFees());
+			
 			
 		} catch(Exception e) {
 			e.printStackTrace();

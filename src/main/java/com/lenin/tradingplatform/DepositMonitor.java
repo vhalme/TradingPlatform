@@ -42,6 +42,7 @@ public class DepositMonitor {
 		
 		System.out.println("Update deposits");
 		
+		update("btc");
 		update("ltc");
 		update("usd");
 	
@@ -73,14 +74,29 @@ public class DepositMonitor {
 			processPendingTransactions(settings, BitcoinTransaction.class, "confirmedAddBtce");
 			processPendingTransactions(settings, BitcoinTransaction.class, "confirmedWithdrawal");
 			
-			processTransferRequests(currency, "transferReqBtce");
-			processTransferRequests(currency, "withdrawalReq");
+			processBitcoinTransferRequests(currency, "readyTransferBtce");
+			processBitcoinTransferRequests(currency, "readyWithdraw");
+			
+			processPendingTransactions(settings, BitcoinTransaction.class, "completedFailed");
 			
 		} else if(currency.equals("usd")) {
 			
+			System.out.println("process pending withdrawals");
+			processPendingTransactions(settings, OkpayTransaction.class, "withdrawalReq");
+			
+			System.out.println("get new transactions");
 			getNewOkpayTransactions(settings, currency);
 			
+			System.out.println("process pending confirmed");
 			processPendingTransactions(settings, OkpayTransaction.class, "confirmed");
+			processPendingTransactions(settings, OkpayTransaction.class, "confirmedAddBtce");
+			processPendingTransactions(settings, OkpayTransaction.class, "confirmedWithdrawalReq");
+			
+			System.out.println("process transfer reqs");
+			processOkpayTransferRequests(currency, "readyWithdraw");
+			
+			System.out.println("process pending failed");
+			processPendingTransactions(settings, BitcoinTransaction.class, "completedFailed");
 			
 		}
 		
@@ -100,6 +116,17 @@ public class DepositMonitor {
 		Map<String, BitcoinTransaction> txByTxId = new HashMap<String, BitcoinTransaction>();
 		List<String> txIds = new ArrayList<String>();
 		
+		OperationResult opResult = client.getTransactions("", 100, 0);
+		List<BitcoinTransaction> transactions = (List<BitcoinTransaction>)opResult.getData();
+		
+		for(BitcoinTransaction transaction : transactions) {
+			
+			txIds.add(transaction.getTxId());
+			txByTxId.put(transaction.getTxId(), transaction);
+			
+		}
+		
+		/*
 		for(User u : users) {
 			
 			String account = u.getAccountName();
@@ -119,7 +146,7 @@ public class DepositMonitor {
 			}
 			
 		}
-		
+		*/
 		
 		Query searchTransactionsByTxId = new Query(Criteria.where("txId").in(txIds));
 		List<BitcoinTransaction> existingTxs = mongoOps.find(searchTransactionsByTxId, BitcoinTransaction.class);
@@ -128,6 +155,9 @@ public class DepositMonitor {
 		for(BitcoinTransaction existingTx : existingTxs) {
 			existingTxById.put(existingTx.getTxId(), existingTx);
 		}
+		
+		int existingCount = 0;
+		int newCount = 0;
 		
 		for(int i=0; i<txIds.size(); i++) {
 			
@@ -138,14 +168,30 @@ public class DepositMonitor {
 			
 			if(existingTx != null) {
 				
-				System.out.println("Updating existing tx "+existingTx.getId());
-				existingTx.setConfirmations(tx.getConfirmations());
+				//System.out.println("Updating existing tx "+existingTx.getId());
+				
+				int txConfirmations = tx.getConfirmations();
+				int existingConfirmations = existingTx.getConfirmations();
+				
+				String txCurrency = tx.getCurrency();
 				
 				if(existingTx.getState().equals("transferBtce") || existingTx.getState().equals("transferReqBtce")) {
 					
-					if(tx.getConfirmations() >= 6) {
+					int requiredConfirmations = 0;
+					if(txCurrency.equals("btc")) {
+						requiredConfirmations = 3;
+					} else if(txCurrency.equals("ltc")) {
+						requiredConfirmations = 6;
+					}
+					
+					existingTx.setStateInfo("Waiting for "+txConfirmations+"/"+requiredConfirmations+" confirmations.");
+					
+					if((txCurrency.equals("ltc") && txConfirmations >= 6 && existingConfirmations < 6) ||
+						(txCurrency.equals("btc") && txConfirmations >= 3 && existingConfirmations < 3)) {
+						
 						existingTx.setState("confirmedAddBtce");
 						existingTx.setStateInfo("Confirmed by BTC-E. Calculating available BTC-E funds.");
+					
 					}
 					
 				} if(existingTx.getState().equals("withdrawing") || existingTx.getState().equals("withdrawReq")) {
@@ -164,19 +210,27 @@ public class DepositMonitor {
 					
 				}
 				
+				existingTx.setConfirmations(txConfirmations);
+				
 				mongoOps.save(existingTx);
-			
+				
+				existingCount++;
+				
 			} else {
 				
-				System.out.println("Adding new tx");
+				//System.out.println("Adding new tx");
+				
 				tx.setState("deposited");
 				tx.setStateInfo("Awaiting network confirmation.");
 				mongoOps.insert(tx);
 				
-			}
+				newCount++;
 				
+			}
+			
 		}
 		
+		System.out.println("updateBitcoinTransactions: "+existingCount+" existing, "+newCount+" new");
 		
 	}
 	
@@ -202,7 +256,7 @@ public class DepositMonitor {
 				
 				Long time = transaction.getTime();
 				
-				System.out.println(time+" <> "+maxTime);
+				//System.out.println(time+" <> "+maxTime);
 				
 				if(time > maxTime) {
 					maxTime = time;
@@ -217,6 +271,9 @@ public class DepositMonitor {
 			mongoOps.save(settings);
 			
 		}
+		
+		System.out.println("getNewOkpayTransactions: "+transactions.size()+" new");
+		
 		
 	}
 	
@@ -238,7 +295,7 @@ public class DepositMonitor {
 				accountTransactions = new ArrayList<FundTransaction>();
 				txByAccount.put(transaction.getAccount(), accountTransactions);
 			}
-				
+			
 			accountTransactions.add(transaction);
 				
 		}
@@ -266,26 +323,49 @@ public class DepositMonitor {
 				
 				String nextState = txState;
 				
-				if(type.equals("addToBtce")) {
+				if(type.equals("addToBtce") || type.equals("returnFromBtce")) {
 					
-					if(txState.equals("confirmedAddBtce")) {
+					Map<String, Map<String, Double>> activeFunds = user.getActiveFunds();
+					Map<String, Double> activeBtceFunds = activeFunds.get("btce");
+					Double activeCurrencyFunds = activeBtceFunds.get(currency);
+					
+					if(txState.equals("completedFailed")) {
 						
-						Map<String, Map<String, Double>> activeFunds = user.getActiveFunds();
-						Map<String, Double> activeBtceFunds = activeFunds.get("btce");
-						Double activeCurrencyFunds = activeBtceFunds.get(currency);
+						if(type.equals("addToBtce")) {
+							
+							currencyFunds += txAmount;
+							userFunds.put(currency, currencyFunds);
+						
+							nextState = "failedReimbursed";
 					
+						}
+						
+					} else if(type.equals("addToBtce") && txState.equals("confirmedAddBtce")) {
+						
 						activeCurrencyFunds += txAmount;
-					
+						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
 						user.setActiveFunds(activeFunds);
 						
 						nextState = "completed";
 						
-					} else if(txState.equals("transferReqBtce")) {
+					} else if(type.equals("returnFromBtce") && txState.equals("transferReqBtce")) {
+						
+						activeCurrencyFunds -= txAmount;
+						
+						activeBtceFunds.put(currency, activeCurrencyFunds);
+						activeFunds.put("btce", activeBtceFunds);
+						user.setActiveFunds(activeFunds);
+						
+						nextState = "readyTransferBtce";
+						
+					} else if(type.equals("addToBtce") && txState.equals("transferReqBtce")) {
 					
 						currencyFunds -= txAmount;
 						userFunds.put(currency, currencyFunds);
+						
+						nextState = "readyTransferBtce";
 						
 					}
 					
@@ -295,6 +375,15 @@ public class DepositMonitor {
 						
 						currencyFunds -= txAmount;
 						userFunds.put(currency, currencyFunds);
+						
+						nextState = "readyWithdraw";
+					
+					} else if(txState.equals("completedFailed")) {
+						
+						currencyFunds += txAmount;
+						userFunds.put(currency, currencyFunds);
+						
+						nextState = "failedReimbursed";
 					
 					} else if(txState.equals("confirmedWithdrawal")) {
 						
@@ -332,11 +421,11 @@ public class DepositMonitor {
 	}
 	
 	
-	private void processTransferRequests(String currency, String state) {
+	private void processBitcoinTransferRequests(String currency, String state) {
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
-		Query searchTransactionsByState = new Query(Criteria.where("state").is(state));
+		Query searchTransactionsByState = new Query(Criteria.where("state").is(state).andOperator(Criteria.where("currency").is(currency)));
 		List<BitcoinTransaction> transactions = mongoOps.find(searchTransactionsByState, BitcoinTransaction.class);
 		
 		BitcoinClient client = new BitcoinClient(currency);
@@ -370,7 +459,53 @@ public class DepositMonitor {
 					transaction.setTxId((String)opResult.getData());
 					transaction.setStateInfo(nextStateInfo);
 				} else {
-					transaction.setState(nextState+"Failed");
+					transaction.setState("completedFailed");
+					transaction.setStateInfo("Failed to send payment.");
+				}
+			
+				mongoOps.save(transaction);
+			
+			}
+			
+		}
+		
+	
+	}
+	
+	
+	private void processOkpayTransferRequests(String currency, String state) {
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Query searchTransactionsByState = new Query(Criteria.where("state").is(state));
+		List<OkpayTransaction> transactions = mongoOps.find(searchTransactionsByState, OkpayTransaction.class);
+		
+		OkpayClient client = new OkpayClient();
+		
+		for(OkpayTransaction transaction : transactions) {
+			
+			String nextState = null;
+			String nextStateInfo = null;
+			
+			if(transaction.getType().equals("withdrawal")) {
+				nextState = "completed";
+				nextStateInfo = "Transfer succeeded. Waiting for network confirmation.";
+			}
+			
+			if(nextState != null) {
+				
+				String account = transaction.getAccount();
+				String fromWalletId = transaction.getSenderWalletId();
+				String toWalletId = transaction.getReceiverWalletId();
+				Double amount = transaction.getAmount();
+			
+				OperationResult opResult = client.transferFunds(fromWalletId, toWalletId, account, amount);
+				
+				if(opResult.getSuccess() == 1) {
+					transaction.setState(nextState);
+					transaction.setStateInfo(nextStateInfo);
+				} else {
+					transaction.setState("completedFailed");
 					transaction.setStateInfo("Failed to send payment.");
 				}
 			

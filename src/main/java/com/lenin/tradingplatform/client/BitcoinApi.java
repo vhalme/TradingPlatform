@@ -14,6 +14,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HTTP;
+import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 
@@ -26,6 +27,8 @@ public class BitcoinApi {
 	private String host;
 	private int port;
 	
+	private Double transferFee = 0.0;
+	
 	
 	public BitcoinApi(String host, int port, String username, String password) {
 		
@@ -37,6 +40,17 @@ public class BitcoinApi {
 		
 	}
 
+	
+	public Double getTransferFee() {
+		return transferFee;
+	}
+
+
+	public void setTransferFee(Double transferFee) {
+		this.transferFee = transferFee;
+	}
+
+
 	public JSONObject exec(String method, List<Object> params) {
 
 		
@@ -47,6 +61,8 @@ public class BitcoinApi {
 		
 		
 		String hostUrl = "http://"+host+":"+port;
+		
+		System.out.println("Connecting to host: "+hostUrl);
 		
 		HttpPost httppost = new HttpPost(hostUrl);
 		httppost.setHeader("Content-type", "application/json");
@@ -92,9 +108,14 @@ public class BitcoinApi {
 				while((line = rd.readLine()) != null) {
 					result += line;
 				}
-
+				
+				System.out.println("Result: "+result);
+				
+				//rd.close();
+				//instream.close();
+				
+				
 			}
-
 
 		} catch(Exception e) {
 
@@ -104,11 +125,13 @@ public class BitcoinApi {
 
 
 		try {
-
-			//System.out.println(result);
-
+			
+			//JSONArray jsonResultArray = new JSONArray(result);
 			JSONObject jsonResult = new JSONObject(result);
-
+			//jsonResult.put("result", jsonResultArray);
+			
+			//System.out.println(result);
+			
 			return jsonResult;
 
 		} catch(JSONException e) {

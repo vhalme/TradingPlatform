@@ -204,6 +204,8 @@ public class TradingClient {
 					
 					if(order.getRemains() == 0) {
 						order.setFilledAmount(order.getBrokerAmount());
+					} else if(order.getReceived() > 0) {
+						order.setFilledAmount(order.getReceived());
 					}
 					
 					System.out.println("Trade request posted successfully.");
