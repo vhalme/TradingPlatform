@@ -4,6 +4,8 @@ import java.io.Serializable;
 
 import org.springframework.data.mongodb.core.mapping.DBRef;
 
+import com.lenin.tradingplatform.client.TradingClient;
+
 
 public class Order extends BtceApiCall implements Serializable {
 	
@@ -214,33 +216,42 @@ public class Order extends BtceApiCall implements Serializable {
 	}
 	
 	
-	public Double calcTradeRevenue(Trade trade) {
+	public Double calcProfit(Trade trade, Double brokerFeeFactor) {
 		
-		Double tradeRevenue = 0.0;
+		Double profit = 0.0;
 		
 		if(reversedOrder != null) {
 			
-			Double totalFeeFactor = (1 - 0.002);
-			//Double totalFeeFactor = (1 - UserTrader.transactionFee);
-			Double tradeAmount = trade.getAmount()*totalFeeFactor;
-		
+			Double totalTradeAmount = trade.getAmount() * brokerFeeFactor;
+			
+			Double tradeAmountRatio = trade.getAmount() / brokerAmount;
+			Double bruttoAmountEquivalent = reversedOrder.getAmount() * tradeAmountRatio;
+			
+			Double feeDeduction = (bruttoAmountEquivalent-totalTradeAmount) * rate;
+			
 			if(type.equals("sell")) {
-			
-				tradeRevenue = 
-						(tradeAmount*rate) - 
-						(tradeAmount*reversedOrder.getRate());
-		
+				
+				Double sellPrice = totalTradeAmount * rate;
+				Double buyPrice = bruttoAmountEquivalent * reversedOrder.getRate();
+				
+				System.out.println("sell: "+totalTradeAmount+"*"+rate+", "+bruttoAmountEquivalent+"*"+reversedOrder.getRate());
+				profit = (sellPrice - buyPrice) - feeDeduction;
+				System.out.println("profit="+profit);
+				
 			} else if(type.equals("buy")) {
-			
-				tradeRevenue = 
-					(tradeAmount*reversedOrder.getRate()) -
-					(tradeAmount*rate);
-		
+				
+				Double buyPrice = totalTradeAmount * rate;
+				Double sellPrice = bruttoAmountEquivalent * reversedOrder.getRate();
+				
+				System.out.println("buy: "+totalTradeAmount+"*"+rate+", "+bruttoAmountEquivalent+"*"+reversedOrder.getRate());
+				profit = (sellPrice - buyPrice) - feeDeduction;
+				System.out.println("profit="+profit);
+				
 			}
 			
 		}
 		
-		return tradeRevenue;
+		return profit;
 		
 	}
 	
@@ -271,5 +282,18 @@ public class Order extends BtceApiCall implements Serializable {
 		
 	}
 
+	public void setIsFilled(Boolean isFilled) {
+		
+	}
 	
+	public Boolean getIsFilled() {
+		
+		Double filledRatio = filledAmount / brokerAmount;
+		Double missingPart = Math.abs(1-filledRatio);
+		Boolean isFilled = missingPart < 0.001;
+		
+		return isFilled;
+		
+	}
+
 }

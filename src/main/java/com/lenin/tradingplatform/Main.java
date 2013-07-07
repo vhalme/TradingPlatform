@@ -31,15 +31,15 @@ public class Main {
 		tradingProcess.init();
 	}
 	
-	@Scheduled(fixedDelay = 60000)
+	@Scheduled(fixedDelay = 15000)
 	public void update() {
 		
-		System.out.println("Start scheduled update");
+		System.out.println("Start scheduled update v4");
 		
 		tradingProcess.update();
 		depositMonitor.update();
 		
-		System.out.println("Finished scheduled update");
+		System.out.println("Finished scheduled update v4");
 		
 		
 	}

@@ -94,6 +94,8 @@ public class TradingClient {
 			return null;
 		}
 		
+		Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+		
 		RequestResponse response = new RequestResponse();
 		
 		if(tradingSession.getLive()) {
@@ -113,13 +115,31 @@ public class TradingClient {
 				
 				if(success == 1) {
 					
-					if(order.getIsReversed() || order.getFilledAmount() == 0) {
+					if(order.getIsReversed()) {
+						
+						Order reverseOrder = orderRepository.findByReversedOrder(order);
+						compensateCancelledOrder(reverseOrder, tradingSession);
+							
+						orderRepository.delete(reverseOrder);
 						orderRepository.delete(order);
+					
 					} else {
-						order.setBrokerAmount(order.getFilledAmount());
-						order.setAmount(order.getFilledAmount());
-						orderRepository.save(order);
+						
+						compensateCancelledOrder(order, tradingSession);
+						
+						if(order.getFilledAmount() > 0) {
+							Double fillRatio = order.getFilledAmount()/order.getBrokerAmount();
+							order.setBrokerAmount(order.getFilledAmount());
+							order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
+							order.setAmount(order.getAmount()*fillRatio);
+							orderRepository.save(order);
+						} else {
+							orderRepository.delete(order);
+						}
+						
 					}
+					
+					tradingSessionRepository.save(tradingSession);
 					
 					System.out.println("Order cancelled successfully.");
 					
@@ -146,12 +166,30 @@ public class TradingClient {
 		} else {
 			
 			if(order.getIsReversed()) {
+				
+				Order reverseOrder = orderRepository.findByReversedOrder(order);
+				compensateCancelledOrder(reverseOrder, tradingSession);
+					
+				orderRepository.delete(reverseOrder);
 				orderRepository.delete(order);
+			
 			} else {
-				order.setBrokerAmount(order.getFilledAmount());
-				order.setAmount(order.getFilledAmount());
-				orderRepository.save(order);
+				
+				compensateCancelledOrder(order, tradingSession);
+				
+				if(order.getFilledAmount() > 0) {
+					Double fillRatio = order.getFilledAmount()/order.getBrokerAmount();
+					order.setBrokerAmount(order.getFilledAmount());
+					order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
+					order.setAmount(order.getAmount()*fillRatio);
+					orderRepository.save(order);
+				} else {
+					orderRepository.delete(order);
+				}
+				
 			}
+			
+			tradingSessionRepository.save(tradingSession);
 			
 			response.setSuccess(1);
 			
@@ -173,12 +211,12 @@ public class TradingClient {
 		order.setTradingSession(tradingSession);
 		order.setLive(tradingSession.getLive());
 		
-		Double feeFactor = 1-TradingClient.orderFee;
-		order.setBrokerAmount(order.getAmount()*(feeFactor-0.001));
+		Double serviceFeeFactor = 1-TradingClient.orderFee;
+		order.setBrokerAmount(order.getAmount()*serviceFeeFactor);
 		
 		if(tradingSession.getLive()) {
 			
-			JSONObject tradeResult = btceApi.trade(order, feeFactor);
+			JSONObject tradeResult = btceApi.trade(order, serviceFeeFactor);
 			
 			if(tradeResult == null) {
 				response.setSuccess(0);
@@ -239,13 +277,17 @@ public class TradingClient {
 			String orderId = ""+unixTime;
 			
 			order.setOrderId(orderId);
-			order.setReceived(order.getBrokerAmount()); //*Math.random());
+			order.setReceived(order.getBrokerAmount()*Math.random());
+			//order.setReceived(order.getBrokerAmount());
 			order.setRemains(order.getBrokerAmount()-order.getReceived());
 			
 			if(order.getRemains() == 0) {
 				order.setFilledAmount(order.getBrokerAmount());
+			} else if(order.getReceived() > 0) {
+				order.setFilledAmount(order.getReceived());
 			}
 			
+			/*
 			Trade trade = new Trade();
 			trade.setLive(false);
 			trade.setOrderId(order.getOrderId());
@@ -253,6 +295,7 @@ public class TradingClient {
 			trade.setTime(unixTime);
 			
 			tradeRepository.save(trade);
+			*/
 			
 			executeOrder(order);
 			
@@ -268,25 +311,31 @@ public class TradingClient {
 	private void executeOrder(Order order) {
 		
 		Double brokerFeeFactor = 1-btceApi.getOrderFee();
+		Double serviceFeeFactor = 1-TradingClient.orderFee;
 		
-		order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
+		Double totalFeeFactor = serviceFeeFactor * brokerFeeFactor;
+		
+		order.setFinalAmount(order.getBrokerAmount() * brokerFeeFactor);
 		
 		if(order.getType().equals("buy")) {
 			
-			Double usdVal = order.getAmount() * order.getRate();
+			Double leftCurrencyVal = order.getAmount() * order.getRate();
+			Double rightCurrencyVal = order.getFilledAmount() * brokerFeeFactor;
 			
-			tradingSession.setFundsLeft(tradingSession.getFundsLeft() - usdVal);
-			tradingSession.setFundsRight(tradingSession.getFundsRight() + order.getFinalAmount());
+			tradingSession.setFundsLeft(tradingSession.getFundsLeft() - leftCurrencyVal);
+			tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyVal);
 			
 		} else if(order.getType().equals("sell")) {
 			
-			Double usdVal = order.getFinalAmount() * order.getRate();
+			Double leftCurrencyVal = (order.getFilledAmount() * brokerFeeFactor) * order.getRate();
+			Double rightCurrencyVal = order.getAmount();
 			
-			tradingSession.setFundsLeft(tradingSession.getFundsLeft() + usdVal);
-			tradingSession.setFundsRight(tradingSession.getFundsRight() - order.getAmount());
+			tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyVal);
+			tradingSession.setFundsRight(tradingSession.getFundsRight() - rightCurrencyVal);
 			
 		}
-		
+
+
 		Order reversedOrder = order.getReversedOrder();
 		System.out.println("exec tx (reverse="+(reversedOrder != null)+", fill="+order.getFilledAmount()+"/broker="+order.getBrokerAmount()+")");
 		
@@ -294,13 +343,13 @@ public class TradingClient {
 			
 			Trade trade = new Trade();
 			trade.setAmount(order.getFilledAmount());
-			Double tradeRevenue = order.calcTradeRevenue(trade);
+			Double tradeProfit = order.calcProfit(trade, brokerFeeFactor);
+			tradingSession.setProfitLeft(tradingSession.getProfitLeft() + tradeProfit);
 			
-			tradingSession.setProfitLeft(tradingSession.getProfitLeft() + tradeRevenue);
 			reversedOrder.setIsReversed(true);
 			reversedOrder.setFilledAmount(order.getFilledAmount());
 			
-			if(order.getFilledAmount() < order.getBrokerAmount()) {
+			if(!order.getIsFilled()) {
 				orderRepository.save(reversedOrder);
 				orderRepository.save(order);
 			} else {
@@ -369,5 +418,26 @@ public class TradingClient {
 		
 	}
 	
+
+	private void compensateCancelledOrder(Order order, TradingSession tradingSession) {
+		
+		Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+		
+		if(order.getType().equals("buy")) {
+			
+			Double leftReturnUnits = (order.getBrokerAmount() - order.getFilledAmount()) * brokerFeeFactor;
+			Double leftCurrencyReturn = leftReturnUnits * order.getRate();
+			
+			tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyReturn);
+			
+		} else if(order.getType().equals("sell")) {
+			
+			Double rightCurrencyReturn = (order.getBrokerAmount() - order.getFilledAmount()) * brokerFeeFactor;
+			
+			tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyReturn);
+			
+		}
+		
+	}
 	
 }

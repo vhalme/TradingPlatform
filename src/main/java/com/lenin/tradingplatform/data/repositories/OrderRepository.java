@@ -11,6 +11,8 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 	
 	Order findByOrderId(String orderId);
 	
+	Order findByReversedOrder(Order reversedOrder);
+	
 	List<Order> findByTradingSession(TradingSession tradingSession);
 	
 	List<Order> findByTradingSessionAndType(TradingSession tradingSession, String type);

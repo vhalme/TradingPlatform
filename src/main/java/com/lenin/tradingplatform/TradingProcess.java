@@ -357,34 +357,51 @@ public class TradingProcess {
 		
 		for(Order order : orders) {
 			
-			if(order.getFilledAmount() < order.getBrokerAmount() && order.getIsReversed() != true) {
+			if(!order.getIsFilled() && order.getIsReversed() != true) {
 				
 				List<Trade> trades = tradeRepository.findByOrderId(order.getOrderId());
 				
-				Double amount = 0.0;
+				Double ordersAmount = 0.0;
 				
 				if(trades.size() > 0) {
 					
 					for(Trade trade : trades) {
-						amount += trade.getAmount();
+						ordersAmount += trade.getAmount();
 					}
 				
 				}
 				
+				Double receivedAmount = order.getReceived();
+				Double totalOrderAmount = receivedAmount + ordersAmount;
 				
-				if(amount > order.getFilledAmount()) {
+				if(totalOrderAmount > order.getFilledAmount()) {
 					
-					Double amountChange = amount-order.getFilledAmount();
+					Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+					Double serviceFeeFactor = 1 - TradingClient.orderFee;
+					Double totalFeeFactor = serviceFeeFactor * brokerFeeFactor;
 					
-					order.setFilledAmount(amount);
+					Double amountChange = totalOrderAmount-order.getFilledAmount();
+					
+					TradingSession tradingSession = order.getTradingSession();
+					
+					if(order.getType().equals("buy")) {
+						
+						Double rightCurrencyVal = amountChange * brokerFeeFactor;
+						tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyVal);
+						
+					} else if(order.getType().equals("sell")) {
+						
+						Double leftCurrencyVal = (amountChange * brokerFeeFactor) * order.getRate();
+						tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyVal);
+						
+					}
+					
+					order.setFilledAmount(totalOrderAmount);
 					changedOrders.add(order);
 					
 					Order reversedOrder = order.getReversedOrder();
 					
 					if(reversedOrder != null) {
-						
-						Double totalFeeFactor = (1-0.002) * (1-btceApi.getOrderFee());
-						//Double totalFeeFactor = (1-UserTrader.orderFee) * (1-BtceApi.orderFee);
 						
 						reversedOrder.setFilledAmount(order.getFilledAmount());
 						changedOrders.add(reversedOrder);
@@ -392,11 +409,9 @@ public class TradingProcess {
 						Trade trade = new Trade();
 						trade.setAmount(amountChange);
 						
-						TradingSession tradingSession = order.getTradingSession();
-						tradingSession.setProfitLeft(tradingSession.getProfitLeft() + (order.calcTradeRevenue(trade)*totalFeeFactor));
-						tradingSessionRepository.save(tradingSession);
+						tradingSession.setProfitLeft(tradingSession.getProfitLeft() + (order.calcProfit(trade, brokerFeeFactor)));
 						
-						if(order.getFilledAmount() >= order.getBrokerAmount()) {
+						if(order.getIsFilled()) {
 							changedOrders.remove(order);
 							changedOrders.remove(reversedOrder);
 							orderRepository.delete(order);
@@ -405,12 +420,14 @@ public class TradingProcess {
 						
 					}
 					
+					tradingSessionRepository.save(tradingSession);
+					
 				}
 				
 				
 			}
 			
-			if(order.getLive() == false && order.getFilledAmount() < order.getBrokerAmount()) {
+			if(order.getLive() == false && !order.getIsFilled()) {
 				
 				Long unixTime = System.currentTimeMillis() / 1000L;
 				
@@ -430,7 +447,8 @@ public class TradingProcess {
 		
 		
 	}
-
+	
+	
 	private void updateTradingSessions() throws Exception {
 		
 		List<TradingSession> tradingSessions = tradingSessionRepository.findAll();
