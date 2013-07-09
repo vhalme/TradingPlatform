@@ -103,7 +103,7 @@ public class TradingClient {
 			JSONObject cancelOrderResult = btceApi.cancelOrder(order);
 		
 			if(cancelOrderResult == null) {
-				response.setSuccess(0);
+				response.setSuccess(-3);
 				response.setMessage("Could not get order cancellation result.");
 				return response;
 			}
@@ -153,12 +153,16 @@ public class TradingClient {
 						System.out.println(key+" : "+cancelOrderResult.get(key));
 					}
 					
+					response.setMessage("Cancel order was unsuccessful.");
+					response.setSuccess(-4);
+					
+					
 				}
 				
 			} catch(JSONException e) {
 				
 				e.printStackTrace();
-				response.setSuccess(0);
+				response.setSuccess(-5);
 				response.setMessage(e.getMessage());
 				
 			}
@@ -216,10 +220,10 @@ public class TradingClient {
 		
 		if(tradingSession.getLive()) {
 			
-			JSONObject tradeResult = btceApi.trade(order, serviceFeeFactor);
+			JSONObject tradeResult = null; //btceApi.trade(order, serviceFeeFactor);
 			
 			if(tradeResult == null) {
-				response.setSuccess(0);
+				response.setSuccess(-3);
 				response.setMessage("Could not get trade result.");
 				return response;
 			}
@@ -261,12 +265,15 @@ public class TradingClient {
 						System.out.println(key+" : "+tradeResult.get(key));
 					}
 					
+					response.setMessage("Order was unsuccessful.");
+					response.setSuccess(-4);
+					
 				}
 				
 			} catch(JSONException e) {
 				
 				e.printStackTrace();
-				response.setSuccess(0);
+				response.setSuccess(-5);
 				response.setMessage(e.getMessage());
 				
 			}

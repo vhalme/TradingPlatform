@@ -68,7 +68,7 @@ public class DepositMonitor {
 			processPendingTransactions(settings, BitcoinTransaction.class, "transferReqBtce");
 			processPendingTransactions(settings, BitcoinTransaction.class, "withdrawalReq");
 			
-			updateBitcoinTransactions(currency);
+			updateBitcoinTransactions(settings, currency);
 			
 			processPendingTransactions(settings, BitcoinTransaction.class, "confirmed");
 			processPendingTransactions(settings, BitcoinTransaction.class, "confirmedAddBtce");
@@ -104,9 +104,12 @@ public class DepositMonitor {
 	}
 	
 	
-	private void updateBitcoinTransactions(String currency) {
+	private void updateBitcoinTransactions(Settings settings, String currency) {
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Map<String, String> lastBlockHashes = settings.getLastBlockHashes();
+		String lastBlockHash = lastBlockHashes.get(currency);
 		
 		Query searchUsers = new Query(Criteria.where("live").is(true));
 		List<User> users = mongoOps.find(searchUsers, User.class);
@@ -116,7 +119,7 @@ public class DepositMonitor {
 		Map<String, BitcoinTransaction> txByTxId = new HashMap<String, BitcoinTransaction>();
 		List<String> txIds = new ArrayList<String>();
 		
-		OperationResult opResult = client.getTransactions("", 100, 0);
+		OperationResult opResult = client.getTransactions(lastBlockHash);
 		List<BitcoinTransaction> transactions = (List<BitcoinTransaction>)opResult.getData();
 		
 		for(BitcoinTransaction transaction : transactions) {
@@ -158,6 +161,11 @@ public class DepositMonitor {
 		
 		int existingCount = 0;
 		int newCount = 0;
+		
+		Long earliestUnconfirmedTime = 9999999999999999L;
+		Long earliestConfirmedTime = 9999999999999999L;
+		BitcoinTransaction earliestConfirmedTx = null;
+		BitcoinTransaction earliestUnconfirmedTx = null;
 		
 		for(int i=0; i<txIds.size(); i++) {
 			
@@ -212,6 +220,32 @@ public class DepositMonitor {
 				
 				existingTx.setConfirmations(txConfirmations);
 				
+				if(tx.getBlockHash() != null && existingTx.getBlockHash() == null) {
+					existingTx.setBlockHash(tx.getBlockHash());
+				}
+				
+				if(tx.getTime() != null && existingTx.getTime() == null) {
+					existingTx.setTime(tx.getTime());
+				}
+				
+				if(tx.getCategory() != null && existingTx.getCategory() == null) {
+					existingTx.setCategory(tx.getCategory());
+				}
+				
+				if(existingTx.getState().startsWith("confirmed")) {
+					if(existingTx.getSystemTime() < earliestConfirmedTime) {
+						earliestConfirmedTime = existingTx.getSystemTime();
+						earliestConfirmedTx = existingTx;
+					}
+				} else {
+					if(existingTx.getSystemTime() < earliestUnconfirmedTime && existingTx.getBlockHash() != null) {
+						earliestUnconfirmedTime = existingTx.getSystemTime();
+						earliestUnconfirmedTx = existingTx;
+					}
+				}
+				
+				
+				
 				mongoOps.save(existingTx);
 				
 				existingCount++;
@@ -222,9 +256,34 @@ public class DepositMonitor {
 				
 				tx.setState("deposited");
 				tx.setStateInfo("Awaiting network confirmation.");
+				tx.setSystemTime(System.currentTimeMillis());
+				
 				mongoOps.insert(tx);
 				
 				newCount++;
+				
+			}
+			
+		}
+		
+		if(earliestConfirmedTx != null && earliestConfirmedTx.getBlockHash() != null) {
+			
+			Boolean updateHash = false;
+			
+			String confirmedHash = earliestConfirmedTx.getBlockHash();
+			
+			if(earliestConfirmedTime < earliestUnconfirmedTime) {
+				
+				if(earliestUnconfirmedTx == null || 
+						(earliestUnconfirmedTx.getBlockHash() != null && !confirmedHash.equals(earliestUnconfirmedTx.getBlockHash())) ||
+						(earliestUnconfirmedTx.getBlockHash() == null && (earliestUnconfirmedTx.getTime()-earliestConfirmedTx.getTime()) > 360)) { 
+			
+					lastBlockHashes.put(currency, earliestConfirmedTx.getBlockHash());
+					settings.setLastBlockHashes(lastBlockHashes);
+					mongoOps.save(settings);
+				
+				}
+				
 				
 			}
 			
@@ -342,7 +401,14 @@ public class DepositMonitor {
 						
 					} else if(type.equals("addToBtce") && txState.equals("confirmedAddBtce")) {
 						
-						activeCurrencyFunds += txAmount;
+						Double fee = 0.0;
+						if(currency.equals("btc")) {
+							fee = 0.0004;
+						} else if(currency.equals("ltc")) {
+							fee = 0.01;
+						}
+						
+						activeCurrencyFunds += (txAmount-fee);
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
@@ -521,7 +587,9 @@ public class DepositMonitor {
 
 	private Settings getSettings(String currency) {
 		
-		Long txSince = 0L;
+		
+		Long lastTxTime = 0L;
+		String lastBlockHash = "";
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		List<Settings> settingsResult = mongoOps.findAll(Settings.class);
@@ -536,22 +604,49 @@ public class DepositMonitor {
 			
 			settings = new Settings();
 			Map<String, Long> lastTxTimes = new HashMap<String, Long>();
+			Map<String, String> lastBlockHashes = new HashMap<String, String>();
 			settings.setLastTransactionTimes(lastTxTimes);
+			settings.setLastBlockHashes(lastBlockHashes);
 		
 		}
 		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
-		if(lastTxTimes == null) {
-			lastTxTimes = new HashMap<String, Long>();
+		Map<String, String> lastBlockHashes = settings.getLastBlockHashes();
+		
+		if(currency.equals("usd")) {
+			
+			if(lastTxTimes == null) {
+				lastTxTimes = new HashMap<String, Long>();
+			}
+			
+			lastTxTime = lastTxTimes.get(currency);
+		
+			if(lastTxTime == null) {
+				lastTxTime = 0L;
+				lastTxTimes.put(currency, lastTxTime);
+				settings.setLastTransactionTimes(lastTxTimes);	
+			}
+		
+			mongoOps.save(settings);
+			
+		} else if(currency.equals("ltc") || currency.equals("btc")) {
+			
+			if(lastBlockHashes == null) {
+				lastBlockHashes = new HashMap<String, String>();
+			}
+			
+			lastBlockHash = lastBlockHashes.get(currency);
+			
+			if(lastBlockHash == null) {
+				lastBlockHash = "";
+				lastBlockHashes.put(currency, lastBlockHash);
+				settings.setLastBlockHashes(lastBlockHashes);
+			}
+			
+			mongoOps.save(settings);
+			
 		}
 		
-		txSince = lastTxTimes.get(currency);
-		if(txSince == null) {
-			txSince = 0L;
-			lastTxTimes.put(currency, txSince);
-			settings.setLastTransactionTimes(lastTxTimes);
-			mongoOps.save(settings);
-		}
 		
 		return settings;
 		

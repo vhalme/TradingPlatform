@@ -21,6 +21,7 @@ public class FundTransaction implements Serializable {
 	private Double amount;
 	
 	private Long time;
+	private Long systemTime;
 	
 	public FundTransaction() {
 		
@@ -92,7 +93,14 @@ public class FundTransaction implements Serializable {
 	public void setTime(Long time) {
 		this.time = time;
 	}
-	
+
+	public Long getSystemTime() {
+		return systemTime;
+	}
+
+	public void setSystemTime(Long systemTime) {
+		this.systemTime = systemTime;
+	}
 	
 	
 

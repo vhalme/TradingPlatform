@@ -240,8 +240,8 @@ public class Order extends BtceApiCall implements Serializable {
 				
 			} else if(type.equals("buy")) {
 				
-				Double buyPrice = totalTradeAmount * rate;
-				Double sellPrice = bruttoAmountEquivalent * reversedOrder.getRate();
+				Double buyPrice = bruttoAmountEquivalent * rate;
+				Double sellPrice = totalTradeAmount * reversedOrder.getRate();
 				
 				System.out.println("buy: "+totalTradeAmount+"*"+rate+", "+bruttoAmountEquivalent+"*"+reversedOrder.getRate());
 				profit = (sellPrice - buyPrice) - feeDeduction;

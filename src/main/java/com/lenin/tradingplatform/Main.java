@@ -34,12 +34,12 @@ public class Main {
 	@Scheduled(fixedDelay = 15000)
 	public void update() {
 		
-		System.out.println("Start scheduled update v4");
+		System.out.println("Start scheduled update v5");
 		
 		tradingProcess.update();
 		depositMonitor.update();
 		
-		System.out.println("Finished scheduled update v4");
+		System.out.println("Finished scheduled update v5");
 		
 		
 	}

@@ -23,6 +23,7 @@ public class Settings implements Serializable {
 	private String btceOkpayWalletId;
 	
 	private Map<String, Long> lastTransactionTimes;
+	private Map<String, String> lastBlockHashes;
 	
 	public Settings() {
 		
@@ -58,6 +59,14 @@ public class Settings implements Serializable {
 
 	public void setLastTransactionTimes(Map<String, Long> lastTransactionTimes) {
 		this.lastTransactionTimes = lastTransactionTimes;
+	}
+	
+	public Map<String, String> getLastBlockHashes() {
+		return lastBlockHashes;
+	}
+
+	public void setLastBlockHashes(Map<String, String> lastBlockHashes) {
+		this.lastBlockHashes = lastBlockHashes;
 	}
 
 	public String getServiceOkpayWalletId() {

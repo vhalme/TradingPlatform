@@ -20,7 +20,7 @@ public class BitcoinClient {
 		
 	}
 	
-	public OperationResult getTransactions(String account, int number, int from) {
+	public OperationResult getTransactions(String lastBlockHash) {
 		
 		OperationResult opResult = new OperationResult();
 		
@@ -29,46 +29,90 @@ public class BitcoinClient {
 		BitcoinApi api = createBitcoinApi(currency);
 		
 		List<Object> params = new ArrayList<Object>();
-		//params.add(account);
+		
+		if(lastBlockHash != null && !lastBlockHash.equals("")) {
+			params.add(lastBlockHash);
+		}
+		
 		//params.add(""+number);
 		//params.add(""+from);
 		
-		JSONObject result = api.exec("listtransactions", params);
+		JSONObject result = api.exec("listsinceblock", params);
 		//System.out.println(result);
+		
+		JSONArray data = null;
 		
 		try {
 			
-			JSONArray data = result.getJSONArray("result");
-			//System.out.println(data);
-			
-			for(int i=0; i<data.length(); i++) {
-				
-				JSONObject txJson = data.getJSONObject(i);
-				
-				BitcoinTransaction	transaction = new BitcoinTransaction();
-				transaction.setType("deposit");
-				transaction.setCurrency(currency);
-				transaction.setTxId(txJson.getString("txid"));
-				transaction.setAccount(txJson.getString("account"));
-				transaction.setAddress(txJson.getString("address"));
-				transaction.setAmount(txJson.getDouble("amount"));
-				transaction.setConfirmations(txJson.getInt("confirmations"));
-				transaction.setTime(txJson.getLong("time"));
-				transaction.setCategory(txJson.getString("category"));
-				
-				//System.out.println("transaction for "+transaction.getAmount()+" detected for "+transaction.getAccount()+" at "+transaction.getTime());
-				//System.out.println(transaction.getTime()+" >= "+fromTime);
-				
-				transactions.add(transaction);
-				
-			}
-			
-			opResult.setSuccess(1);
-			opResult.setData(transactions);
+			JSONObject resultObj = result.getJSONObject("result");
+			data = resultObj.getJSONArray("transactions");
 			
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
+			//System.out.println(data);
+			
+		for(int i=0; i<data.length(); i++) {
+			
+			Boolean addOk = true;
+			
+			BitcoinTransaction	transaction = new BitcoinTransaction();
+			transaction.setType("deposit");
+			transaction.setCurrency(currency);
+			
+			JSONObject txJson = null;
+			
+			try {
+			
+				txJson = data.getJSONObject(i);
+				
+			} catch(Exception e) {
+				e.printStackTrace();
+				addOk = false;
+			}
+			
+			if(addOk) {
+				
+				try {
+					
+					String blockHash = txJson.getString("blockhash");
+					transaction.setBlockHash(blockHash);
+					
+				} catch(Exception e) {
+					//e.printStackTrace();
+				}
+				
+				try {
+				
+					transaction.setTxId(txJson.getString("txid"));
+					//transaction.setBlockHash();
+					transaction.setAccount(txJson.getString("account"));
+					transaction.setAddress(txJson.getString("address"));
+					transaction.setAmount(txJson.getDouble("amount"));
+					transaction.setConfirmations(txJson.getInt("confirmations"));
+					transaction.setTime(txJson.getLong("time"));
+					transaction.setCategory(txJson.getString("category"));
+					
+				} catch(Exception e) {
+					e.printStackTrace();
+					addOk = false;
+				}
+				
+				if(addOk) {
+					transactions.add(transaction);
+				}
+				
+			}
+			
+			//System.out.println("transaction for "+transaction.getAmount()+" detected for "+transaction.getAccount()+" at "+transaction.getTime());
+			//System.out.println(transaction.getTime()+" >= "+fromTime);
+			
+				
+		}
+			
+		opResult.setSuccess(1);
+		opResult.setData(transactions);
+		
 		
 		return opResult;
 		
