@@ -180,13 +180,22 @@ public class BtceApi {
 	
 	public static JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams, String key, String secret) {
         
+		Long newNonce = System.currentTimeMillis() / 1000L;
+		
+		if(newNonce <= _nonce) {
+			newNonce = newNonce+1;
+		}
+		
+		_nonce = newNonce;
+		
 		Date now = new Date();
 		
 		// Request parameters and other properties.
         List<NameValuePair> params = new ArrayList<NameValuePair>(2);
-        params.add(new BasicNameValuePair("nonce", "" + ++_nonce));
+        params.add(new BasicNameValuePair("nonce", "" + _nonce));
         
         String paramsString = "nonce="+_nonce;
+        System.out.println(paramsString);
     	
         if(methodParams != null) {
         	for(NameValuePair nvp : methodParams) {

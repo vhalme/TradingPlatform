@@ -14,7 +14,8 @@ public class AutoTradingOptions implements Serializable {
 	private Double sellThreshold = 0.05;
 	private Double buyThreshold = 0.05;
 	private Double rateBuffer = 0.0;
-	private Double tradeChunk = 10.0;
+	private Double buyChunk = 10.0;
+	private Double sellChunk = 10.0;
 	private Double sellFloor = 1.0;
 	private Double buyCeiling = 1.0;
 	
@@ -69,14 +70,22 @@ public class AutoTradingOptions implements Serializable {
 		this.rateBuffer = rateBuffer;
 	}
 
-	public Double getTradeChunk() {
-		return tradeChunk;
+	public Double getBuyChunk() {
+		return buyChunk;
 	}
 
-	public void setTradeChunk(Double tradeChunk) {
-		this.tradeChunk = tradeChunk;
+	public void setBuyChunk(Double buyChunk) {
+		this.buyChunk = buyChunk;
+	}
+	
+	public Double getSellChunk() {
+		return sellChunk;
 	}
 
+	public void setSellChunk(Double sellChunk) {
+		this.sellChunk = sellChunk;
+	}
+	
 	public Double getSellFloor() {
 		return sellFloor;
 	}

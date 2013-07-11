@@ -220,13 +220,14 @@ public class TradingClient {
 		
 		if(tradingSession.getLive()) {
 			
-			JSONObject tradeResult = null; //btceApi.trade(order, serviceFeeFactor);
+			JSONObject tradeResult = btceApi.trade(order, serviceFeeFactor);
 			
 			if(tradeResult == null) {
 				response.setSuccess(-3);
 				response.setMessage("Could not get trade result.");
 				return response;
 			}
+			
 			
 			try {
 				
@@ -265,7 +266,9 @@ public class TradingClient {
 						System.out.println(key+" : "+tradeResult.get(key));
 					}
 					
-					response.setMessage("Order was unsuccessful.");
+					String errorMessage = tradeResult.getString("error");
+					
+					response.setMessage("Order was unsuccessful: "+errorMessage);
 					response.setSuccess(-4);
 					
 				}

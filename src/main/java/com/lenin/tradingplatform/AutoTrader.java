@@ -60,42 +60,53 @@ public class AutoTrader {
 		
 		if(reversibleBuys.size() == 0 && reversibleSells.size() == 0) {
 			
-			Double tradeChunk = options.getTradeChunk();
+			Double sellRate = tradingSession.getRate().getSell();
+			Double buyRate = tradingSession.getRate().getBuy();
 			
-			Double sellRateChange = tradingSession.getRate().getSell() - highestSell;
-			Double buyRateChange = tradingSession.getRate().getBuy() - lowestBuy;
+			Double sellRateChange = sellRate - highestSell;
+			Double buyRateChange = buyRate - lowestBuy;
 			
-			//System.out.println("sellRateChange="+tradingSession.getRate().getSell()+"-"+highestSell+"="+sellRateChange+"/buyRateChange="+buyRateChange);
+			System.out.println("NEW SELL? "+sellRateChange +" >= "+options.getSellThreshold()+" (src = "+sellRate+" - "+highestSell+")");
+			System.out.println("NEW BUY? "+buyRateChange +" <="+ -(options.getBuyThreshold())+" (brc = "+buyRate+" - "+lowestBuy+")");
 			
-			if(sellRateChange >= options.getSellThreshold() && 
-				tradingSession.getFundsRight() >= tradeChunk && tradingSession.getRate().getSell() > options.getSellFloor()) {
+			if(sellRateChange >= options.getSellThreshold()) {
 				
-				Order sellOrder = 
-						BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
-								tradeChunk, client.actualTradeRate("sell"), "sell");
+				Double tradeChunk = options.getSellChunk();
 				
-				sellOrder.setSave(true);
+				if(tradingSession.getFundsRight() >= tradeChunk && tradingSession.getRate().getSell() > options.getSellFloor()) {
 				
-				client.trade(sellOrder);
-				tradingSession.setOldRate(tradingSession.getRate().getLast());
+					Order sellOrder = 
+							BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
+									tradeChunk, client.actualTradeRate("sell"), "sell");
 				
-				tradingSessionRepository.save(tradingSession);
+					sellOrder.setSave(true);
 				
+					client.trade(sellOrder);
+					tradingSession.setOldRate(tradingSession.getRate().getLast());
+				
+					tradingSessionRepository.save(tradingSession);
+				
+				}
 			
-			} else if(buyRateChange <= -(options.getBuyThreshold()) && 
-					tradingSession.getRate().getBuy() < options.getBuyCeiling() &&
-					tradingSession.getFundsLeft() >= (tradeChunk * client.actualTradeRate("buy"))) {
+			} else if(buyRateChange <= -(options.getBuyThreshold())) {
+				
+				Double tradeChunk = options.getBuyChunk();
+				
+				if(tradingSession.getRate().getBuy() < options.getBuyCeiling() &&
+						tradingSession.getFundsLeft() >= (tradeChunk * client.actualTradeRate("buy"))) {
 			
-				Order buyOrder = 
-						BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
-								tradeChunk, client.actualTradeRate("buy"), "buy");
+					Order buyOrder = 
+							BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
+									tradeChunk, client.actualTradeRate("buy"), "buy");
 				
-				buyOrder.setSave(true);
+					buyOrder.setSave(true);
 				
-				client.trade(buyOrder);
-				tradingSession.setOldRate(tradingSession.getRate().getLast());
+					client.trade(buyOrder);
+					tradingSession.setOldRate(tradingSession.getRate().getLast());
 				
-				tradingSessionRepository.save(tradingSession);
+					tradingSessionRepository.save(tradingSession);
+				
+				}
 				
 			}
 			
@@ -119,7 +130,7 @@ public class AutoTrader {
 			Double difference = Math.abs(order.getRate()-tradingSession.getRate().getSell());
 			Boolean withinRange = difference < tradingSession.getAutoTradingOptions().getBuyThreshold();
 			
-			if(withinRange || order.getFilledAmount() >= order.getBrokerAmount()) {
+			if(withinRange || order.getIsFilled()) {
 				if(lowest == null) {
 					lowest = order.getRate();
 				} else {
@@ -147,7 +158,7 @@ public class AutoTrader {
 			Double difference = Math.abs(order.getRate()-tradingSession.getRate().getBuy());
 			Boolean withinRange = difference < tradingSession.getAutoTradingOptions().getSellThreshold();
 			
-			if(withinRange || order.getFilledAmount() >= order.getBrokerAmount()) {
+			if(withinRange || order.getIsFilled()) {
 				if(highest == null) {
 					highest = order.getRate();
 				} else {
@@ -179,7 +190,7 @@ public class AutoTrader {
 			
 			System.out.println(tradingSession.getRate().getBuy()+" <= "+(rateVal - tradingSession.getAutoTradingOptions().getSellThreshold()));
 			
-			Boolean isFilled = order.getFilledAmount() >= order.getBrokerAmount();
+			Boolean isFilled = order.getIsFilled();
 			
 			if(isFilled && tradingSession.getRate().getBuy() <= (rateVal - tradingSession.getAutoTradingOptions().getSellThreshold())) {
 					
@@ -193,7 +204,7 @@ public class AutoTrader {
 					reversibleOrders.add(order);
 					System.out.println("buy "+amountVal+" for "+(amountVal * actualBuyRate));
 				} else {
-					//System.out.println("OUT OF USD!");
+					System.out.println("OUT OF USD!");
 					break;
 				}
 				
@@ -220,7 +231,7 @@ public class AutoTrader {
 			Double rateVal = order.getRate();
 			Double amountVal = order.getAmount();
 			
-			Boolean isFilled = order.getFilledAmount() >= order.getBrokerAmount();
+			Boolean isFilled = order.getIsFilled();
 			
 			System.out.println(tradingSession.getRate().getSell() +" >= "+ (rateVal + tradingSession.getAutoTradingOptions().getBuyThreshold()));
 					
@@ -234,7 +245,7 @@ public class AutoTrader {
 					reversibleOrders.add(order);
 					System.out.println("sell "+amountVal+" for "+(amountVal * actualSellRate));
 				} else {
-					//System.out.println("OUT OF LTC!");
+					System.out.println("OUT OF LTC!");
 					break;
 				}
 					
@@ -244,7 +255,7 @@ public class AutoTrader {
 		}
 		
 		return reversibleOrders;
-			
+		
 	}
 	
 	
