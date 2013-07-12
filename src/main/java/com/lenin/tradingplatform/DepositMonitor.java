@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import com.lenin.tradingplatform.client.BitcoinApi;
 import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.OperationResult;
@@ -401,14 +402,9 @@ public class DepositMonitor {
 						
 					} else if(type.equals("addToBtce") && txState.equals("confirmedAddBtce")) {
 						
-						Double fee = 0.0;
-						if(currency.equals("btc")) {
-							fee = 0.0004;
-						} else if(currency.equals("ltc")) {
-							fee = 0.01;
-						}
+						Double txFee = BitcoinApi.getFee(currency);
 						
-						activeCurrencyFunds += (txAmount-fee);
+						activeCurrencyFunds += (txAmount-txFee);
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);

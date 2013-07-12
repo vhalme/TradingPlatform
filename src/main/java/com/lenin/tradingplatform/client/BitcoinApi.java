@@ -13,6 +13,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HTTP;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
@@ -27,7 +30,8 @@ public class BitcoinApi {
 	private String host;
 	private int port;
 	
-	private Double transferFee = 0.0;
+	public static Double btcFee = 0.0004;
+	public static Double ltcFee = 0.01;
 	
 	
 	public BitcoinApi(String host, int port, String username, String password) {
@@ -40,21 +44,15 @@ public class BitcoinApi {
 		
 	}
 
-	
-	public Double getTransferFee() {
-		return transferFee;
-	}
-
-
-	public void setTransferFee(Double transferFee) {
-		this.transferFee = transferFee;
-	}
-
 
 	public JSONObject exec(String method, List<Object> params) {
 
 		
 		DefaultHttpClient httpclient = new DefaultHttpClient();
+		
+		HttpParams httpParams = new BasicHttpParams();
+	    HttpConnectionParams.setConnectionTimeout(httpParams, 30000);
+	    
 		httpclient.getCredentialsProvider().setCredentials(
 				new AuthScope(host, port, AuthScope.ANY_REALM),
 				new UsernamePasswordCredentials(username, password));
@@ -144,5 +142,16 @@ public class BitcoinApi {
 	}
 	
 	
+	public static Double getFee(String currency) {
+		
+		if(currency.equals("btc")) {
+			return btcFee;
+		} else if(currency.equals("ltc")) {
+			return ltcFee;
+		} else {
+			return 0.0;
+		}
+		
+	}
 
 }

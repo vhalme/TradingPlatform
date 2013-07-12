@@ -126,7 +126,7 @@ public class BitcoinClient {
 		
 		BitcoinApi api = createBitcoinApi(currency);
 		
-		amount = amount - api.getTransferFee();
+		amount = amount - BitcoinApi.getFee(currency);
 		
 		List<Object> params = new ArrayList<Object>();
 		params.add(fromAccount);
@@ -170,10 +170,8 @@ public class BitcoinClient {
 		
 		if(currency.equals("ltc")) {
 			api = new BitcoinApi("82.196.14.26", 8332, "fluxltc1", "fLuxThuyu1eP");
-			api.setTransferFee(0.01);
 		} else if(currency.equals("btc")) {
 			api = new BitcoinApi("82.196.8.147", 9332, "fluxltc1", "fLuxThuyu1eP");
-			api.setTransferFee(0.0004);
 		}
 		
 		return api;
