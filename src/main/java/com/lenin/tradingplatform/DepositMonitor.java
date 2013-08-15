@@ -17,6 +17,7 @@ import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.OperationResult;
 import com.lenin.tradingplatform.client.TransferClient;
+import com.lenin.tradingplatform.data.entities.AccountFunds;
 import com.lenin.tradingplatform.data.entities.BitcoinTransaction;
 import com.lenin.tradingplatform.data.entities.FundTransaction;
 import com.lenin.tradingplatform.data.entities.OkpayTransaction;
@@ -362,19 +363,19 @@ public class DepositMonitor {
 		
 		List<String> accountNames = new ArrayList<String>(txByAccount.keySet());
 		
-		Query searchUsersByAccounts = new Query(Criteria.where("accountName").in(accountNames));
-		List<User> users = mongoOps.find(searchUsersByAccounts, User.class);
+		Query searchFundsByAccounts = new Query(Criteria.where("accountName").in(accountNames));
+		List<AccountFunds> accountFundsList = mongoOps.find(searchFundsByAccounts, AccountFunds.class);
 		
-		for(User user : users) {
+		for(AccountFunds accountFunds : accountFundsList) {
 			
-			Map<String, Double> userFunds = user.getFunds();
+			Map<String, Double> reserves = accountFunds.getReserves();
 			
-			List<FundTransaction> accountTransactions = txByAccount.get(user.getAccountName());
+			List<FundTransaction> accountTransactions = txByAccount.get(accountFunds.getAccountName());
 			
 			for(FundTransaction transaction : transactions) {
 				
 				String currency = transaction.getCurrency();
-				Double currencyFunds = userFunds.get(currency);
+				Double currencyFunds = reserves.get(currency);
 				
 				Double txAmount = transaction.getAmount();
 				
@@ -385,7 +386,7 @@ public class DepositMonitor {
 				
 				if(type.equals("addToBtce") || type.equals("returnFromBtce")) {
 					
-					Map<String, Map<String, Double>> activeFunds = user.getActiveFunds();
+					Map<String, Map<String, Double>> activeFunds = accountFunds.getActiveFunds();
 					Map<String, Double> activeBtceFunds = activeFunds.get("btce");
 					Double activeCurrencyFunds = activeBtceFunds.get(currency);
 					
@@ -394,7 +395,7 @@ public class DepositMonitor {
 						if(type.equals("addToBtce")) {
 							
 							currencyFunds += txAmount;
-							userFunds.put(currency, currencyFunds);
+							reserves.put(currency, currencyFunds);
 						
 							nextState = "failedReimbursed";
 					
@@ -408,7 +409,7 @@ public class DepositMonitor {
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
-						user.setActiveFunds(activeFunds);
+						accountFunds.setActiveFunds(activeFunds);
 						
 						nextState = "completed";
 						
@@ -418,14 +419,14 @@ public class DepositMonitor {
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
-						user.setActiveFunds(activeFunds);
+						accountFunds.setActiveFunds(activeFunds);
 						
 						nextState = "readyTransferBtce";
 						
 					} else if(type.equals("addToBtce") && txState.equals("transferReqBtce")) {
 					
 						currencyFunds -= txAmount;
-						userFunds.put(currency, currencyFunds);
+						reserves.put(currency, currencyFunds);
 						
 						nextState = "readyTransferBtce";
 						
@@ -436,14 +437,14 @@ public class DepositMonitor {
 					if(txState.equals("withdrawalReq")) {
 						
 						currencyFunds -= txAmount;
-						userFunds.put(currency, currencyFunds);
+						reserves.put(currency, currencyFunds);
 						
 						nextState = "readyWithdraw";
 					
 					} else if(txState.equals("completedFailed")) {
 						
 						currencyFunds += txAmount;
-						userFunds.put(currency, currencyFunds);
+						reserves.put(currency, currencyFunds);
 						
 						nextState = "failedReimbursed";
 					
@@ -459,7 +460,7 @@ public class DepositMonitor {
 					if(txState.equals("confirmed")) {
 						
 						currencyFunds += txAmount;
-						userFunds.put(currency, currencyFunds);
+						reserves.put(currency, currencyFunds);
 						
 						nextState = "completed";
 						
@@ -472,13 +473,10 @@ public class DepositMonitor {
 				
 			}
 			
-			user.setFunds(userFunds);
+			mongoOps.save(accountFunds);
 			
 		}
 		
-		if(users.size() > 0) {
-			userRepository.save(users);
-		}
 		
 	}
 	

@@ -27,19 +27,14 @@ public class User implements Serializable {
 	private String authToken;
 	private Long lastActivity;
 	
-	private String accountName;
-	private Map<String, String> addresses = new HashMap<String, String>();
-	
-	private Map<String, Double> funds = new HashMap<String, Double>();
-	private Map<String, Map<String, Double>> activeFunds = new HashMap<String, Map<String, Double>>();
-	
 	@DBRef
 	private List<TradingSession> tradingSessions = new ArrayList<TradingSession>();
 	
 	@DBRef
 	private TradingSession currentTradingSession;
 	
-	private Double receivedOnAccount = 0.0;
+	@DBRef
+	private AccountFunds accountFunds;
 	
 	
 	public User() {
@@ -85,22 +80,6 @@ public class User implements Serializable {
 		this.password = password;
 	}
 
-	public Map<String, Double> getFunds() {
-		return funds;
-	}
-
-	public void setFunds(Map<String, Double> funds) {
-		this.funds = funds;
-	}
-	
-	public Map<String, Map<String, Double>> getActiveFunds() {
-		return activeFunds;
-	}
-
-	public void setActiveFunds(Map<String, Map<String, Double>> activeFunds) {
-		this.activeFunds = activeFunds;
-	}
-
 	public List<TradingSession> getTradingSessions() {
 		return tradingSessions;
 	}
@@ -134,6 +113,16 @@ public class User implements Serializable {
 		this.lastActivity = lastActivity;
 	}
 
+	
+	
+	public AccountFunds getAccountFunds() {
+		return accountFunds;
+	}
+
+	public void setAccountFunds(AccountFunds accountFunds) {
+		this.accountFunds = accountFunds;
+	}
+
 	public Double getFunds(String fund) {
 		
 		if(fund.equals("left")) {
@@ -156,37 +145,9 @@ public class User implements Serializable {
 		
 	}
 
-	public String getAccountName() {
-		return accountName;
-	}
-
-	public void setAccountName(String accountName) {
-		this.accountName = accountName;
-	}
-
-	public Map<String, String> getAddresses() {
-		return addresses;
-	}
-
-	public void setAddresses(Map<String, String> addresses) {
-		this.addresses = addresses;
-	}
 
 	public void addTradingSession(TradingSession tradingSession) {
 		tradingSessions.add(tradingSession);
-	}
-
-	public Double getReceivedOnAccount() {
-		return receivedOnAccount;
-	}
-
-	public void setReceivedOnAccount(Double receivedOnAccount) {
-		
-		Double difference = receivedOnAccount - this.receivedOnAccount;
-		
-		this.receivedOnAccount = receivedOnAccount;
-	
-	
 	}
 	
 	
