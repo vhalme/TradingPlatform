@@ -93,6 +93,12 @@ public class BitcoinApi {
 
 			//Execute and get the response.
 			HttpResponse httpResponse = httpclient.execute(httppost);
+			
+			int statusCode = httpResponse.getStatusLine().getStatusCode();
+			String statusPhrase = httpResponse.getStatusLine().getReasonPhrase();
+			
+			System.out.println("Request result: "+statusCode+" "+statusPhrase);
+			
 			HttpEntity entity = httpResponse.getEntity();
 
 			if(entity != null) {
