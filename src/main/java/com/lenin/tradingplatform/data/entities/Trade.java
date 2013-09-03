@@ -16,6 +16,7 @@ public class Trade implements Serializable {
 	
 	private Boolean live = false;
 	
+	private String service;
 	private String tradeId;
 	private String pair;
 	private String type;
@@ -23,6 +24,10 @@ public class Trade implements Serializable {
 	private Double rate;
 	private String orderId;
 	private Long time;
+	
+	@DBRef
+	private AccountFunds accountFunds;
+	
 	
 	public Trade() {
 		
@@ -115,6 +120,26 @@ public class Trade implements Serializable {
 
 	public void setTime(Long time) {
 		this.time = time;
+	}
+
+
+	public String getService() {
+		return service;
+	}
+
+
+	public void setService(String service) {
+		this.service = service;
+	}
+
+
+	public AccountFunds getAccountFunds() {
+		return accountFunds;
+	}
+
+
+	public void setAccountFunds(AccountFunds accountFunds) {
+		this.accountFunds = accountFunds;
 	}
 
 	

@@ -183,11 +183,13 @@ public class BtceApi {
 	
 	public static JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams, String key, String secret) {
         
-		Long newNonce = System.currentTimeMillis() / 1000L;
+		Long newNonce = (System.currentTimeMillis() / 1000L) + 100L;
 		
+		/*
 		if(newNonce <= _nonce) {
-			newNonce = newNonce+1;
+			newNonce = _nonce+1;
 		}
+		*/
 		
 		_nonce = newNonce;
 		
@@ -246,13 +248,15 @@ public class BtceApi {
         		InputStream instream = entity.getContent();
         		
         		BufferedReader rd = new BufferedReader(new InputStreamReader(instream));
-        		//System.out.println("Ready to read result...");
+        		System.out.println("Ready to read result...");
         	
         		String line = null;
         		while((line = rd.readLine()) != null) {
             		result += line;
             	}
             	
+        		System.out.println(result);
+        		
         	}
             
         } catch(Exception e) {

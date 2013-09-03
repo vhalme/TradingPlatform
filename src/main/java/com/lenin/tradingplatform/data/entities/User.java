@@ -149,8 +149,6 @@ public class User implements Serializable {
 	public void addTradingSession(TradingSession tradingSession) {
 		tradingSessions.add(tradingSession);
 	}
-	
-	
-	
+
 
 }

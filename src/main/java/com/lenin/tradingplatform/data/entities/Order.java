@@ -40,6 +40,8 @@ public class Order extends BtceApiCall implements Serializable {
 	private Double remains = 0.0;
 	private Double filledAmount = 0.0;
 	
+	private Double feeFraction;
+	private Double feeAmount;
 	
 	public Order() {
 		
@@ -216,6 +218,26 @@ public class Order extends BtceApiCall implements Serializable {
 	}
 	
 	
+	public Double getFeeFraction() {
+		return feeFraction;
+	}
+
+
+	public void setFeeFraction(Double feeFraction) {
+		this.feeFraction = feeFraction;
+	}
+
+
+	public Double getFeeAmount() {
+		return feeAmount;
+	}
+
+
+	public void setFeeAmount(Double feeAmount) {
+		this.feeAmount = feeAmount;
+	}
+
+
 	public Double calcProfit(Trade trade, Double brokerFeeFactor) {
 		
 		Double profit = 0.0;

@@ -80,8 +80,9 @@ public class AutoTrader {
 									tradeChunk, client.actualTradeRate("sell"), "sell");
 				
 					sellOrder.setSave(true);
-				
+					
 					client.trade(sellOrder);
+					
 					tradingSession.setOldRate(tradingSession.getRate().getLast());
 				
 					tradingSessionRepository.save(tradingSession);

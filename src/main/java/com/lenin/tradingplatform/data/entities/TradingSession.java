@@ -36,7 +36,6 @@ public class TradingSession implements Serializable {
 	
 	private AutoTradingOptions autoTradingOptions;
 	
-	
 	public TradingSession() {
 	}
 	
@@ -162,5 +161,6 @@ public class TradingSession implements Serializable {
 		return currencyRight+"_"+currencyLeft;
 	}
  	
+	
 
 }
