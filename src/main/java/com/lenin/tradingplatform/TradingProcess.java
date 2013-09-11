@@ -296,6 +296,10 @@ public class TradingProcess {
 			String accountKey = (String)serviceProperties.get("apiKey");
 			String accountSecret = (String)serviceProperties.get("apiSecret");
 			
+			if(accountKey == null || accountKey.length() == 0) {
+				continue;
+			}
+			
 			Query searchTrades = new Query(Criteria.where("accountFunds").is(account));
 			List<Trade> savedTrades = mongoOps.find(searchTrades, Trade.class);
 			
@@ -578,6 +582,10 @@ public class TradingProcess {
 					Map<String, Object> serviceProperties = servicePropertyMap.getProperties();
 					String accountKey = (String)serviceProperties.get("apiKey");
 					String accountSecret = (String)serviceProperties.get("apiSecret");
+					
+					if(accountKey == null  || accountKey.length() == 0) {
+						continue;
+					}
 					
 					BtceApi btceApi = new BtceApi(accountKey, accountSecret);
 					btceApi.setOrderFee(0.002);

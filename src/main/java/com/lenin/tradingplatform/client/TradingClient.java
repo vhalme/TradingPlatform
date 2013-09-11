@@ -15,7 +15,7 @@ import com.lenin.tradingplatform.data.repositories.TradingSessionRepository;
 
 public class TradingClient {
 	
-	public static Double orderFee = 0.002;
+	public static Double orderFee = 0.000;
 	
 	private TradingSession tradingSession;
 	private OrderRepository orderRepository;

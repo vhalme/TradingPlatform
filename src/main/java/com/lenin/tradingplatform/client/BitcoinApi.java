@@ -115,8 +115,8 @@ public class BitcoinApi {
 				
 				System.out.println("Result: "+result);
 				
-				//rd.close();
-				//instream.close();
+				rd.close();
+				instream.close();
 				
 				
 			}

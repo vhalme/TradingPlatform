@@ -1,5 +1,6 @@
 package com.lenin.tradingplatform;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -376,8 +377,10 @@ public class DepositMonitor {
 				
 				String currency = transaction.getCurrency();
 				Double currencyFunds = reserves.get(currency);
+				BigDecimal bdCurrencyFunds = new BigDecimal(""+currencyFunds);
 				
 				Double txAmount = transaction.getAmount();
+				BigDecimal bdTxAmount = new BigDecimal(""+txAmount);
 				
 				String type = transaction.getType();
 				String txState = transaction.getState();
@@ -389,12 +392,15 @@ public class DepositMonitor {
 					Map<String, Map<String, Double>> activeFunds = accountFunds.getActiveFunds();
 					Map<String, Double> activeBtceFunds = activeFunds.get("btce");
 					Double activeCurrencyFunds = activeBtceFunds.get(currency);
+					BigDecimal bdActiveCurrencyFunds = new BigDecimal(""+activeCurrencyFunds);
 					
 					if(txState.equals("completedFailed")) {
 						
 						if(type.equals("addToBtce")) {
 							
-							currencyFunds += txAmount;
+							bdCurrencyFunds = bdCurrencyFunds.add(bdTxAmount);
+							currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds + txAmount;
+							
 							reserves.put(currency, currencyFunds);
 						
 							nextState = "failedReimbursed";
@@ -404,8 +410,12 @@ public class DepositMonitor {
 					} else if(type.equals("addToBtce") && txState.equals("confirmedAddBtce")) {
 						
 						Double txFee = BitcoinApi.getFee(currency);
+						BigDecimal bdTxFee = new BigDecimal(""+txFee);
 						
-						activeCurrencyFunds += (txAmount-txFee);
+						BigDecimal bdAdd = bdTxAmount.subtract(bdTxFee);
+						
+						bdActiveCurrencyFunds = bdActiveCurrencyFunds.add(bdAdd);
+						activeCurrencyFunds = bdActiveCurrencyFunds.doubleValue(); //activeCurrencyFunds + (txAmount-txFee);
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
@@ -415,7 +425,8 @@ public class DepositMonitor {
 						
 					} else if(type.equals("returnFromBtce") && txState.equals("transferReqBtce")) {
 						
-						activeCurrencyFunds -= txAmount;
+						bdActiveCurrencyFunds = bdActiveCurrencyFunds.add(bdTxAmount);
+						activeCurrencyFunds = bdActiveCurrencyFunds.doubleValue(); //activeCurrencyFunds - txAmount;
 						
 						activeBtceFunds.put(currency, activeCurrencyFunds);
 						activeFunds.put("btce", activeBtceFunds);
@@ -424,8 +435,10 @@ public class DepositMonitor {
 						nextState = "readyTransferBtce";
 						
 					} else if(type.equals("addToBtce") && txState.equals("transferReqBtce")) {
-					
-						currencyFunds -= txAmount;
+						
+						bdCurrencyFunds = bdCurrencyFunds.subtract(bdTxAmount);
+						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds - txAmount;
+						
 						reserves.put(currency, currencyFunds);
 						
 						nextState = "readyTransferBtce";
@@ -436,14 +449,18 @@ public class DepositMonitor {
 					
 					if(txState.equals("withdrawalReq")) {
 						
-						currencyFunds -= txAmount;
+						bdCurrencyFunds = bdCurrencyFunds.subtract(bdTxAmount);
+						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds - txAmount;
+						
 						reserves.put(currency, currencyFunds);
 						
 						nextState = "readyWithdraw";
 					
 					} else if(txState.equals("completedFailed")) {
 						
-						currencyFunds += txAmount;
+						bdCurrencyFunds = bdCurrencyFunds.add(bdTxAmount);
+						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds + txAmount;
+						
 						reserves.put(currency, currencyFunds);
 						
 						nextState = "failedReimbursed";
@@ -459,8 +476,11 @@ public class DepositMonitor {
 					
 					if(txState.equals("confirmed")) {
 						
-						currencyFunds += txAmount;
+						System.out.println("CHK1: "+currencyFunds+"/"+txAmount);
+						bdCurrencyFunds = bdCurrencyFunds.add(bdTxAmount);
+						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds + txAmount;
 						reserves.put(currency, currencyFunds);
+						System.out.println("CHK2: "+currencyFunds+"/"+reserves.get(currency));
 						
 						nextState = "completed";
 						
