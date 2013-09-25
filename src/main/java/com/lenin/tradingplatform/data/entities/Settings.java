@@ -25,6 +25,8 @@ public class Settings implements Serializable {
 	private Map<String, Long> lastTransactionTimes;
 	private Map<String, String> lastBlockHashes;
 	
+	private Map<String, Map<String, Double>> serviceFees;
+	
 	public Settings() {
 		
 	}
@@ -85,7 +87,13 @@ public class Settings implements Serializable {
 		this.btceOkpayWalletId = btceOkpayWalletId;
 	}
 
-	
-	
+	public Map<String, Map<String, Double>> getServiceFees() {
+		return serviceFees;
+	}
+
+	public void setServiceFees(Map<String, Map<String, Double>> serviceFees) {
+		this.serviceFees = serviceFees;
+	}
+
 	
 }

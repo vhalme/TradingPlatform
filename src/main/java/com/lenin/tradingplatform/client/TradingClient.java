@@ -1,34 +1,47 @@
 package com.lenin.tradingplatform.client;
 
+import java.math.BigDecimal;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 
+import com.lenin.tradingplatform.TradingProcess;
 import com.lenin.tradingplatform.client.BtceApi;
+import com.lenin.tradingplatform.data.entities.AccountFunds;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.Trade;
 import com.lenin.tradingplatform.data.entities.TradingSession;
+import com.lenin.tradingplatform.data.entities.User;
 import com.lenin.tradingplatform.data.repositories.OrderRepository;
 import com.lenin.tradingplatform.data.repositories.TradeRepository;
 import com.lenin.tradingplatform.data.repositories.TradingSessionRepository;
+import com.lenin.tradingplatform.data.repositories.UserRepository;
 
 public class TradingClient {
 	
 	public static Double orderFee = 0.000;
 	
 	private TradingSession tradingSession;
+	private UserRepository userRepository;
 	private OrderRepository orderRepository;
 	private TradingSessionRepository tradingSessionRepository;
 	private TradeRepository tradeRepository;
+	private TradingProcess tradingProcess;
 	
 	private BtceApi btceApi;
 	
-	public TradingClient(TradingSession tradingSession, TradingSessionRepository tradingSessionRepository, 
+	public TradingClient(TradingProcess tradingProcess, TradingSession tradingSession, UserRepository userRepository, TradingSessionRepository tradingSessionRepository, 
 			OrderRepository orderRepository,
 			TradeRepository tradeRepository) {
 		
+		this.tradingProcess = tradingProcess;
 		this.tradingSession = tradingSession;
+		this.userRepository = userRepository;
 		this.orderRepository = orderRepository;
 		this.tradingSessionRepository = tradingSessionRepository;
 		this.tradeRepository = tradeRepository;
@@ -283,8 +296,8 @@ public class TradingClient {
 			
 		} else {
 			
-			Long unixTime = System.currentTimeMillis() / 1000L;
-			String orderId = ""+unixTime;
+			Double random = Math.random();
+			String orderId = ""+random;
 			
 			order.setOrderId(orderId);
 			order.setReceived(order.getBrokerAmount()*Math.random());
@@ -356,6 +369,17 @@ public class TradingClient {
 			Double tradeProfit = order.calcProfit(trade, brokerFeeFactor);
 			tradingSession.setProfitLeft(tradingSession.getProfitLeft() + tradeProfit);
 			
+			User user = userRepository.findByUsername(tradingSession.getUsername());
+			
+			if(tradingProcess != null) {
+				
+				String orderMode = order.getMode();
+				if(orderMode != null && !orderMode.equals("manual")) {
+					tradingProcess.processProfit(user, tradeProfit, "left", tradingSession);
+				}
+				
+			}
+			
 			reversedOrder.setIsReversed(true);
 			reversedOrder.setFilledAmount(order.getFilledAmount());
 			
@@ -369,9 +393,13 @@ public class TradingClient {
 			
 		} else {
 			
+			orderRepository.save(order);
+			
+			/*
 			if(order.getSave()) {
-				orderRepository.save(order);
+				
 			}
+			*/
 			
 		}
 		
@@ -423,6 +451,7 @@ public class TradingClient {
 			BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), order.getAmount(), actualTradeRate(reverseType), reverseType);
 		
 		reverseOrder.setReversedOrder(order);
+		reverseOrder.setMode(order.getMode());
 		
 		return reverseOrder;
 		
@@ -449,5 +478,6 @@ public class TradingClient {
 		}
 		
 	}
+	
 	
 }

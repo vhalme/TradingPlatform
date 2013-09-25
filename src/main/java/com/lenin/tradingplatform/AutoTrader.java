@@ -31,7 +31,7 @@ public class AutoTrader {
 	}
 	
 	
-	public void autoTrade() {
+	public void autoTrade(Boolean newTrades) {
 		
 		AutoTradingOptions options = tradingSession.getAutoTradingOptions();
 		
@@ -58,6 +58,10 @@ public class AutoTrader {
 		
 		System.out.println("autotrading..."+reversibleBuys.size());
 		
+		if(newTrades == false) {
+			return;
+		}
+		
 		if(reversibleBuys.size() == 0 && reversibleSells.size() == 0) {
 			
 			Double sellRate = tradingSession.getRate().getSell();
@@ -79,6 +83,7 @@ public class AutoTrader {
 							BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
 									tradeChunk, client.actualTradeRate("sell"), "sell");
 				
+					sellOrder.setMode("auto");
 					sellOrder.setSave(true);
 					
 					client.trade(sellOrder);
@@ -99,7 +104,8 @@ public class AutoTrader {
 					Order buyOrder = 
 							BtceApi.createOrder(tradingSession.getCurrencyRight()+"_"+tradingSession.getCurrencyLeft(), 
 									tradeChunk, client.actualTradeRate("buy"), "buy");
-				
+					
+					buyOrder.setMode("auto");
 					buyOrder.setSave(true);
 				
 					client.trade(buyOrder);
@@ -122,7 +128,7 @@ public class AutoTrader {
 	
 	public Double lowestBuy() {
 		
-		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "buy");
+		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
 		
 		Double lowest = null;
 		
@@ -150,7 +156,7 @@ public class AutoTrader {
 	
 	public Double highestSell() {
 		
-		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "sell");
+		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
 		
 		Double highest = null;
 		
@@ -177,7 +183,7 @@ public class AutoTrader {
 	
 	private List<Order> getReversibleSells() {
    		
-		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "sell");
+		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
 		System.out.println(orders);
 		
 		Double calculatedBuyAmount = 0.0;
@@ -220,7 +226,7 @@ public class AutoTrader {
 	
 	private List<Order> getReversibleBuys() {
    		
-		List<Order> orders = orderRepository.findByTradingSessionAndType(tradingSession, "buy");
+		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
 		System.out.println(orders);
 		
 		Double calculatedSellAmount = 0.0;

@@ -37,7 +37,7 @@ public class Main {
 		System.out.println("Start scheduled update v7");
 		
 		tradingProcess.update();
-		depositMonitor.update();
+		//depositMonitor.update();
 		
 		System.out.println("Finished scheduled update v7");
 		

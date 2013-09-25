@@ -1,5 +1,6 @@
 package com.lenin.tradingplatform;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -214,12 +215,29 @@ public class TradingProcess {
 		Double totalLast = 0.0;
 		Double totalBuy = 0.0;
 		Double totalSell = 0.0;
+		Double totalAverage = 0.0;
+		
+		Rate first = rates.get(0);
+		Rate last = rates.get(rates.size()-1);
+		Double open = first.getLast();
+		Double close = last.getLast();
+		Double high = first.getLast();
+		Double low = first.getLast();
 		
 		for(Rate rate : rates) {
+			
+			if(rate.getLast() > high) {
+				high = rate.getLast();
+			}
+			
+			if(rate.getLast() < low) {
+				low = rate.getLast();
+			}
 			
 			totalLast += rate.getLast();
 			totalBuy += rate.getBuy();
 			totalSell += rate.getSell();
+			totalAverage += rate.getAverage();
 			
 			count++;
 		
@@ -228,11 +246,13 @@ public class TradingProcess {
 		Double avgLast = 0.0;
 		Double avgBuy = 0.0;
 		Double avgSell = 0.0;
+		Double avgAverage = 0.0;
 		
 		if(count > 0) {
 			avgLast = totalLast/count;
 			avgBuy = totalBuy/count;
 			avgSell = totalSell/count;
+			avgAverage = totalAverage/count;
 		}
 		
 		Rate avgRate = new Rate();
@@ -243,6 +263,10 @@ public class TradingProcess {
 		avgRate.setLast(avgLast);
 		avgRate.setBuy(avgBuy);
 		avgRate.setSell(avgSell);
+		avgRate.setOpen(open);
+		avgRate.setClose(close);
+		avgRate.setHigh(high);
+		avgRate.setLow(low);
 		
 		return avgRate;
 		
@@ -266,6 +290,13 @@ public class TradingProcess {
 			rate.setLast(rateJson.getDouble("last"));
 			rate.setBuy(rateJson.getDouble("buy"));
 			rate.setSell(rateJson.getDouble("sell"));
+			rate.setHigh(rateJson.getDouble("high"));
+			rate.setLow(rateJson.getDouble("low"));
+			rate.setAverage(rateJson.getDouble("avg"));
+			rate.setOpen(rate.getLast());
+			rate.setClose(rate.getLast());
+			rate.setVolume(rateJson.getDouble("vol"));
+			rate.setCurrentVolume(rateJson.getDouble("vol_cur"));
 			rate.setTime(rateJson.getLong("server_time"));
 			
 			return rate;
@@ -313,11 +344,22 @@ public class TradingProcess {
 			btceApi.setOrderFee(0.002);
 			
 			if(user.getLive() == true) {
-			
-				JSONObject userInfoResult = btceApi.getAccountInfo();
-				JSONObject userInfo = userInfoResult.getJSONObject("return");
-				JSONObject userFunds = userInfo.getJSONObject("funds");
-			
+				
+				JSONObject userInfoResult = null; //btceApi.getAccountInfo();
+				JSONObject userInfo = null; //userInfoResult.getJSONObject("return");
+				JSONObject userFunds = null; //userInfo.getJSONObject("funds");
+				
+				try {
+					
+					userInfoResult = btceApi.getAccountInfo();
+					userInfo = userInfoResult.getJSONObject("return");
+					userFunds = userInfo.getJSONObject("funds");
+					
+				} catch(Exception e) {
+					e.printStackTrace();
+					continue;
+				}
+				
 				List<TradingSession> tradingSessions = user.getTradingSessions();
 			
 				for(TradingSession tradingSession : tradingSessions) {
@@ -425,101 +467,134 @@ public class TradingProcess {
 	
 	private void updateOrders() throws Exception {
 		
-		List<Order> orders = orderRepository.findAll();
-		List<Order> changedOrders = new ArrayList<Order>();
+		Rate ltc_usd = rateMap.get("ltc_usd");
+		Rate btc_usd = rateMap.get("btc_usd");
+		Rate ltc_btc = rateMap.get("ltc_btc");
 		
-		for(Order order : orders) {
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		List<User> users = userRepository.findAll();
+		
+		//List<Order> orders = orderRepository.findAll();
+		
+		for(User user : users) {
 			
-			if(!order.getIsFilled() && order.getIsReversed() != true) {
+			List<TradingSession> tradingSessions = user.getTradingSessions();
+			
+			for(TradingSession tradingSession : tradingSessions) {
+			
+				List<Order> orders = orderRepository.findByTradingSession(tradingSession);
+				List<Order> changedOrders = new ArrayList<Order>();
 				
-				List<Trade> trades = tradeRepository.findByOrderId(order.getOrderId());
+				for(Order order : orders) {
+			
+					if(!order.getIsFilled() && order.getIsReversed() != true) {
 				
-				Double ordersAmount = 0.0;
+						List<Trade> trades = tradeRepository.findByOrderId(order.getOrderId());
 				
-				if(trades.size() > 0) {
-					
-					for(Trade trade : trades) {
-						ordersAmount += trade.getAmount();
-					}
+						Double ordersAmount = 0.0;
 				
-				}
+						if(trades.size() > 0) {
+					
+							for(Trade trade : trades) {
+								ordersAmount += trade.getAmount();
+							}
 				
-				Double receivedAmount = order.getReceived();
-				Double totalOrderAmount = receivedAmount + ordersAmount;
-				
-				if(totalOrderAmount > order.getFilledAmount()) {
-					
-					BtceApi btceApi = new BtceApi("", "");
-					btceApi.setOrderFee(0.002);
-					
-					Double brokerFeeFactor = 1 - btceApi.getOrderFee();
-					Double serviceFeeFactor = 1 - TradingClient.orderFee;
-					Double totalFeeFactor = serviceFeeFactor * brokerFeeFactor;
-					
-					Double amountChange = totalOrderAmount-order.getFilledAmount();
-					
-					TradingSession tradingSession = order.getTradingSession();
-					
-					if(order.getType().equals("buy")) {
-						
-						Double rightCurrencyVal = amountChange * brokerFeeFactor;
-						tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyVal);
-						
-					} else if(order.getType().equals("sell")) {
-						
-						Double leftCurrencyVal = (amountChange * brokerFeeFactor) * order.getRate();
-						tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyVal);
-						
-					}
-					
-					order.setFilledAmount(totalOrderAmount);
-					changedOrders.add(order);
-					
-					Order reversedOrder = order.getReversedOrder();
-					
-					if(reversedOrder != null) {
-						
-						reversedOrder.setFilledAmount(order.getFilledAmount());
-						changedOrders.add(reversedOrder);
-						
-						Trade trade = new Trade();
-						trade.setAmount(amountChange);
-						
-						tradingSession.setProfitLeft(tradingSession.getProfitLeft() + (order.calcProfit(trade, brokerFeeFactor)));
-						
-						if(order.getIsFilled()) {
-							changedOrders.remove(order);
-							changedOrders.remove(reversedOrder);
-							orderRepository.delete(order);
-							orderRepository.delete(reversedOrder);
 						}
+				
+						Double receivedAmount = order.getReceived();
+						Double totalOrderAmount = receivedAmount + ordersAmount;
+				
+						if(totalOrderAmount > order.getFilledAmount()) {
+					
+							BtceApi btceApi = new BtceApi("", "");
+							btceApi.setOrderFee(0.002);
+					
+							Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+							Double serviceFeeFactor = 1 - TradingClient.orderFee;
+							Double totalFeeFactor = serviceFeeFactor * brokerFeeFactor;
+					
+							Double amountChange = totalOrderAmount-order.getFilledAmount();
+					
+							//TradingSession tradingSession = order.getTradingSession();
+					
+							if(order.getType().equals("buy")) {
 						
+								Double rightCurrencyVal = amountChange * brokerFeeFactor;
+								tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyVal);
+						
+							} else if(order.getType().equals("sell")) {
+						
+								Double leftCurrencyVal = (amountChange * brokerFeeFactor) * order.getRate();
+								tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyVal);
+						
+							}
+					
+							order.setFilledAmount(totalOrderAmount);
+							changedOrders.add(order);
+					
+							Order reversedOrder = order.getReversedOrder();
+					
+							if(reversedOrder != null) {
+								
+								String profitSide = "left";
+								
+								reversedOrder.setFilledAmount(order.getFilledAmount());
+								changedOrders.add(reversedOrder);
+						
+								Trade trade = new Trade();
+								trade.setAmount(amountChange);
+						
+								Double profitLeft = tradingSession.getProfitLeft();
+								Double tradeProfit = order.calcProfit(trade, brokerFeeFactor);
+								tradingSession.setProfitLeft(profitLeft + tradeProfit);
+								
+								String orderMode = reversedOrder.getMode();
+								if(orderMode != null && !orderMode.equals("manual")) {
+									processProfit(user, tradeProfit, profitSide, tradingSession);
+								}
+								
+								if(order.getIsFilled()) {
+									changedOrders.remove(order);
+									changedOrders.remove(reversedOrder);
+									orderRepository.delete(order);
+									orderRepository.delete(reversedOrder);
+								}
+						
+							}
+					
+							tradingSessionRepository.save(tradingSession);
+					
+						}
+				
+				
 					}
-					
-					tradingSessionRepository.save(tradingSession);
-					
-				}
-				
-				
-			}
 			
-			if(order.getLive() == false && !order.getIsFilled()) {
+					if(order.getLive() == false && !order.getIsFilled()) {
 				
-				Long unixTime = System.currentTimeMillis() / 1000L;
+						Long unixTime = System.currentTimeMillis() / 1000L;
 				
-				Trade trade = new Trade();
-				trade.setLive(false);
-				trade.setOrderId(order.getOrderId());
-				trade.setAmount(order.getBrokerAmount()-order.getFilledAmount());
-				trade.setTime(unixTime);
+						Trade trade = new Trade();
+						trade.setLive(false);
+						trade.setRate(order.getRate());
+						trade.setOrderId(order.getOrderId());
+						
+						BigDecimal bdBrokerAmount = new BigDecimal(""+order.getBrokerAmount());
+						BigDecimal bdFilledAmount = new BigDecimal(""+order.getFilledAmount());
+						trade.setAmount((bdBrokerAmount.subtract(bdFilledAmount)).doubleValue());
+						trade.setTime(unixTime);
 				
-				tradeRepository.save(trade);
+						tradeRepository.save(trade);
+				
+					}
+			
+				}
+		
+				orderRepository.save(changedOrders);
 				
 			}
 			
 		}
-		
-		orderRepository.save(changedOrders);
 		
 		
 	}
@@ -578,10 +653,45 @@ public class TradingProcess {
 				if(tradingSession.getAutoTradingOptions().getTradeAuto() == true && tradingSession.getRate().getLast() != 0.0) {
 				
 					AccountFunds account = user.getAccountFunds();
-					PropertyMap servicePropertyMap = account.getServiceProperties().get("btce");
+					PropertyMap servicePropertyMap = account.getServiceProperties().get(tradingSession.getService());
+					PropertyMap paymentPropertyMap = account.getServiceProperties().get("payment");
 					Map<String, Object> serviceProperties = servicePropertyMap.getProperties();
+					Map<String, Object> paymentProperties = paymentPropertyMap.getProperties();
 					String accountKey = (String)serviceProperties.get("apiKey");
 					String accountSecret = (String)serviceProperties.get("apiSecret");
+					
+					List<Map<String, Object>> periods = (List<Map<String, Object>>)paymentProperties.get("periods");
+					Map<String, Object> currentPeriod = (Map<String, Object>)periods.get(1);
+					
+					String paymentMethod = (String)currentPeriod.get("method");
+					String paymentCurrency = (String)currentPeriod.get("currency");
+					
+					Map<String, Map<String, Double>> serviceFees = settings.getServiceFees();
+					Map<String, Double> monthlyFees = serviceFees.get("monthly");
+					Map<String, Double> profitFees = serviceFees.get("profit");
+					
+					Boolean newTrades = false;
+					
+					Double currencyFunds = account.getReserves().get(paymentCurrency);
+					BigDecimal bdCurrencyFunds = new BigDecimal(""+currencyFunds);
+					
+					BigDecimal bdRequiredFunds = new BigDecimal("0.0");
+					if(paymentMethod != null && paymentMethod.length() > 0 && paymentCurrency != null && paymentCurrency.length() > 0) {
+						
+						if(paymentMethod.equals("monthly")) {
+							bdRequiredFunds = new BigDecimal(""+monthlyFees.get(paymentCurrency));
+						} else if(paymentMethod.equals("profit")) {
+							bdRequiredFunds = new BigDecimal(""+profitFees.get(paymentCurrency));
+						}
+						
+						BigDecimal bdMissingFunds = bdRequiredFunds.subtract(bdCurrencyFunds);
+						Double missingFunds = bdMissingFunds.doubleValue();
+						
+						if(missingFunds <= 0) {
+							newTrades = true;
+						}
+						
+					}
 					
 					if(accountKey == null  || accountKey.length() == 0) {
 						continue;
@@ -590,11 +700,11 @@ public class TradingProcess {
 					BtceApi btceApi = new BtceApi(accountKey, accountSecret);
 					btceApi.setOrderFee(0.002);
 				
-					TradingClient tradingClient = new TradingClient(tradingSession, tradingSessionRepository, orderRepository, tradeRepository);
+					TradingClient tradingClient = new TradingClient(this, tradingSession, userRepository, tradingSessionRepository, orderRepository, tradeRepository);
 					tradingClient.setBtceApi(btceApi);
 				
 					AutoTrader autoTrader = new AutoTrader(tradingClient);
-					autoTrader.autoTrade();
+					autoTrader.autoTrade(newTrades);
 				
 				}
 				
@@ -603,6 +713,69 @@ public class TradingProcess {
 			
 		}
 		
+		
+	}
+	
+	
+	public void processProfit(User user, Double tradeProfit, String profitSide, TradingSession tradingSession) {
+		
+		AccountFunds accountFunds = user.getAccountFunds();
+		Map<String, Double> reserves = accountFunds.getReserves();
+		
+		Map<String, Object> paymentSettings = 
+				accountFunds.getServiceProperties().get("payment").getProperties();
+		
+		List<Map<String, Object>> periods = (List<Map<String, Object>>)paymentSettings.get("periods");
+		Map<String, Object> currentPeriod = periods.get(1);
+		
+		String paymentMethod = (String)currentPeriod.get("method");
+		String paymentCurrency = (String)currentPeriod.get("currency");
+		Map<String, String> periodProfits = (Map<String, String>)currentPeriod.get("sharedProfit");
+		
+		Double profitShare = tradeProfit * 0.1;
+		
+		if(paymentMethod.equals("profit")) {
+			
+			String profitCurrency = "";
+			if(profitSide.equals("left")) {
+				profitCurrency = tradingSession.getCurrencyLeft();
+			} else {
+				profitCurrency = tradingSession.getCurrencyRight();
+			}
+			
+			if(!profitCurrency.equals(paymentCurrency)) {
+				
+				String exchangePair = null;
+				Double exchangeFactor = 1.0;
+				
+				if(profitSide.equals("left")) {
+					exchangePair = paymentCurrency+"_"+profitCurrency;
+					Double rate = rateMap.get(exchangePair).getLast();
+					exchangeFactor = 1.0/rate;
+				} else {
+					exchangePair = profitCurrency+"_"+paymentCurrency;
+					Double rate = rateMap.get(exchangePair).getLast();
+					exchangeFactor = rate;
+				}
+				
+				profitShare = profitShare * exchangeFactor;
+				
+			}
+			
+			BigDecimal bdProfitShare = new BigDecimal(""+profitShare);
+			BigDecimal bdExistingProfits = new BigDecimal(periodProfits.get(paymentCurrency));
+			bdExistingProfits = bdExistingProfits.add(bdProfitShare);
+			periodProfits.put(paymentCurrency, bdExistingProfits.toString());
+			
+			Double currentFunds = reserves.get(paymentCurrency);
+			BigDecimal bdCurrentFunds = new BigDecimal(""+currentFunds);
+			
+			bdCurrentFunds = bdCurrentFunds.subtract(new BigDecimal(""+profitShare));
+			reserves.put(paymentCurrency, bdCurrentFunds.doubleValue());
+			
+			mongoTemplate.save(accountFunds);
+		
+		}
 		
 	}
 	

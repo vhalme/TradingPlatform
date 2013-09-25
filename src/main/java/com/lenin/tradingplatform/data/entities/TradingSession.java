@@ -36,6 +36,10 @@ public class TradingSession implements Serializable {
 	
 	private AutoTradingOptions autoTradingOptions;
 	
+	private String userId;
+	private String username;
+	
+	
 	public TradingSession() {
 	}
 	
@@ -159,6 +163,22 @@ public class TradingSession implements Serializable {
 	
 	public String getPair() {
 		return currencyRight+"_"+currencyLeft;
+	}
+
+	public String getUserId() {
+		return userId;
+	}
+
+	public void setUserId(String userId) {
+		this.userId = userId;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
 	}
  	
 	

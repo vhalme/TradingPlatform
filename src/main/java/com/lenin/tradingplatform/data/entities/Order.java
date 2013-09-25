@@ -34,6 +34,7 @@ public class Order extends BtceApiCall implements Serializable {
 	private Double finalAmount;
 	private String pair;
 	private String type;
+	private String mode;
 	
 	private String orderId;
 	private Double received = 0.0;
@@ -175,6 +176,17 @@ public class Order extends BtceApiCall implements Serializable {
 
 	public void setType(String type) {
 		this.type = type;
+	}
+
+	
+
+	public String getMode() {
+		return mode;
+	}
+
+
+	public void setMode(String mode) {
+		this.mode = mode;
 	}
 
 

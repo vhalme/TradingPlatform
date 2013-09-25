@@ -23,6 +23,14 @@ public class Rate implements Serializable {
 	private Double last = 0.0;
 	private Double buy = 0.0;
 	private Double sell = 0.0;
+	private Double average = 0.0;
+	private Double high = 0.0;
+	private Double low = 0.0;
+	private Double open = 0.0;
+	private Double close = 0.0;
+	private Double volume = 0.0;
+	private Double currentVolume = 0.0;
+	
 	
 	public Rate() {
 		
@@ -95,6 +103,76 @@ public class Rate implements Serializable {
 
 	public void setSell(Double sell) {
 		this.sell = sell;
+	}
+
+	
+	public Double getAverage() {
+		return average;
+	}
+
+
+	public void setAverage(Double average) {
+		this.average = average;
+	}
+
+
+	public Double getHigh() {
+		return high;
+	}
+
+
+	public void setHigh(Double high) {
+		this.high = high;
+	}
+
+
+	public Double getLow() {
+		return low;
+	}
+
+
+	public void setLow(Double low) {
+		this.low = low;
+	}
+
+	
+	public Double getOpen() {
+		return open;
+	}
+
+
+	public void setOpen(Double open) {
+		this.open = open;
+	}
+
+
+	public Double getClose() {
+		return close;
+	}
+
+
+	public void setClose(Double close) {
+		this.close = close;
+	}
+
+
+	public Double getVolume() {
+		return volume;
+	}
+
+
+	public void setVolume(Double volume) {
+		this.volume = volume;
+	}
+
+
+	public Double getCurrentVolume() {
+		return currentVolume;
+	}
+
+
+	public void setCurrentVolume(Double currentVolume) {
+		this.currentVolume = currentVolume;
 	}
 
 	
