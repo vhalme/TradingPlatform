@@ -12,6 +12,8 @@ public interface UserRepository extends MongoRepository<User, String> {
 	
 	User findByUsername(String username);
 	
+	List<User> findByDeleted(Boolean deleted);
+	
 	User findByUsernameAndAuthToken(String username, String authToken);
 	
 	List<User> findAll();

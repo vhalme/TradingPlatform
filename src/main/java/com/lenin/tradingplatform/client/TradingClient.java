@@ -374,7 +374,7 @@ public class TradingClient {
 			if(tradingProcess != null) {
 				
 				String orderMode = order.getMode();
-				if(orderMode != null && !orderMode.equals("manual")) {
+				if(orderMode != null && !orderMode.equals("manual") && user.getLive() == true) {
 					tradingProcess.processProfit(user, tradeProfit, "left", tradingSession);
 				}
 				

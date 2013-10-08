@@ -1,11 +1,11 @@
 package com.lenin.tradingplatform.data.entities;
 
 import java.io.Serializable;
-import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 
 public class Rate implements Serializable {
@@ -15,10 +15,13 @@ public class Rate implements Serializable {
 	@Id
 	private String id;
 	
+	private String testSessionId;
+	
 	private String setType;
 	
 	private Long time = System.currentTimeMillis()/1000L;
 	
+	private String service;
 	private String pair;
 	private Double last = 0.0;
 	private Double buy = 0.0;
@@ -30,6 +33,8 @@ public class Rate implements Serializable {
 	private Double close = 0.0;
 	private Double volume = 0.0;
 	private Double currentVolume = 0.0;
+	
+	private Map<String, Double> movingAverages = new HashMap<String, Double>();
 	
 	
 	public Rate() {
@@ -173,6 +178,36 @@ public class Rate implements Serializable {
 
 	public void setCurrentVolume(Double currentVolume) {
 		this.currentVolume = currentVolume;
+	}
+
+
+	public Map<String, Double> getMovingAverages() {
+		return movingAverages;
+	}
+
+
+	public void setMovingAverages(Map<String, Double> movingAverages) {
+		this.movingAverages = movingAverages;
+	}
+
+
+	public String getService() {
+		return service;
+	}
+
+
+	public void setService(String service) {
+		this.service = service;
+	}
+
+
+	public String getTestSessionId() {
+		return testSessionId;
+	}
+
+
+	public void setTestSessionId(String testSessionId) {
+		this.testSessionId = testSessionId;
 	}
 
 	

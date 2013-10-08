@@ -20,7 +20,7 @@
 	
 	<!-- MONGO DB -->
 	
-	<mongo:mongo host="127.0.0.1" port="27017"/>
+	<mongo:mongo host="162.243.18.23" port="27017"/>
 	
 	<mongo:repositories base-package="com.lenin.tradingplatform.data.repositories">
 		<mongo:repository id="orderRepository" mongo-template-ref="mongoTemplate" />
@@ -38,19 +38,26 @@
 	
 	
 	<!-- Service -->
-	<bean id="tradingProcess" class="com.lenin.tradingplatform.TradingProcess">
-    </bean>
-    
     <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
     </bean>
     
-    <bean id="depositMonitor" class="com.lenin.tradingplatform.DepositMonitor">
-    </bean>
      
 	<task:annotation-driven scheduler="taskScheduler"/>
 	<task:scheduler id="taskScheduler" pool-size="2"/>
     
     <context:annotation-config />
-    <context:component-scan base-package="com.lenin.tradingplatform"/>
+    
+    <context:component-scan base-package="com.lenin.tradingplatform" >
+ 
+		<context:include-filter type="regex" 
+                       expression="com.lenin.tradingplatform.DepositMain" />
+                       
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.RatesMain" />
+                       
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingMain" />
+ 
+	</context:component-scan>
     
 </beans>

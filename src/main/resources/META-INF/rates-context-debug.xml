@@ -38,19 +38,26 @@
 	
 	
 	<!-- Service -->
-	<bean id="tradingProcess" class="com.lenin.tradingplatform.TradingProcess">
-    </bean>
-    
     <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
     </bean>
     
-    <bean id="depositMonitor" class="com.lenin.tradingplatform.DepositMonitor">
-    </bean>
      
 	<task:annotation-driven scheduler="taskScheduler"/>
 	<task:scheduler id="taskScheduler" pool-size="2"/>
     
     <context:annotation-config />
-    <context:component-scan base-package="com.lenin.tradingplatform"/>
+    
+    <context:component-scan base-package="com.lenin.tradingplatform" >
+ 
+		<context:include-filter type="regex" 
+                       expression="com.lenin.tradingplatform.RatesMain" />
+                       
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.DepositMain" />
+                       
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingMain" />
+ 
+	</context:component-scan>
     
 </beans>

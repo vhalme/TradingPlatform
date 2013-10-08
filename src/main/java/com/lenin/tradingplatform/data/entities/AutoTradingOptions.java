@@ -9,7 +9,7 @@ public class AutoTradingOptions implements Serializable {
 
 	private Boolean tradeAuto = false;
 	
-	private String autoTradingModel = "accumulateUsd";
+	private String autoTradingModel = "simpleDelta";
 	
 	private Double sellThreshold = 0.05;
 	private Double buyThreshold = 0.05;

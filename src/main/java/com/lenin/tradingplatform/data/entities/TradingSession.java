@@ -1,6 +1,7 @@
 package com.lenin.tradingplatform.data.entities;
 
 import java.io.Serializable;
+import java.util.Date;
 
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
@@ -33,12 +34,15 @@ public class TradingSession implements Serializable {
 	private Double fundsRight = 0.0;
 	private Double profitLeft = 0.0;
 	private Double profitRight = 0.0;
+	private Date profitLeftSince;
+	private Date profitRightSince;
 	
 	private AutoTradingOptions autoTradingOptions;
 	
 	private String userId;
 	private String username;
 	
+	private Boolean deleted = false;
 	
 	public TradingSession() {
 	}
@@ -83,6 +87,7 @@ public class TradingSession implements Serializable {
 		this.currencyRight = currencyRight;
 	}
 
+	
 	public Rate getRate() {
 		return rate;
 	}
@@ -90,7 +95,8 @@ public class TradingSession implements Serializable {
 	public void setRate(Rate rate) {
 		this.rate = rate;
 	}
-
+	
+	
 	public Double getOldRate() {
 		return oldRate;
 	}
@@ -131,6 +137,22 @@ public class TradingSession implements Serializable {
 		this.profitRight = profitRight;
 	}
 	
+	public Date getProfitLeftSince() {
+		return profitLeftSince;
+	}
+
+	public void setProfitLeftSince(Date profitLeftSince) {
+		this.profitLeftSince = profitLeftSince;
+	}
+
+	public Date getProfitRightSince() {
+		return profitRightSince;
+	}
+
+	public void setProfitRightSince(Date profitRightSince) {
+		this.profitRightSince = profitRightSince;
+	}
+
 	public AutoTradingOptions getAutoTradingOptions() {
 		return autoTradingOptions;
 	}
@@ -179,6 +201,14 @@ public class TradingSession implements Serializable {
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	public Boolean getDeleted() {
+		return deleted;
+	}
+
+	public void setDeleted(Boolean deleted) {
+		this.deleted = deleted;
 	}
  	
 	

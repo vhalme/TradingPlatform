@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BitcoinApi;
 import com.lenin.tradingplatform.client.BitcoinClient;
+import com.lenin.tradingplatform.client.EmailSender;
 import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.OperationResult;
 import com.lenin.tradingplatform.client.TransferClient;
@@ -48,13 +49,14 @@ public class DepositMonitor {
 		update("btc");
 		update("ltc");
 		update("usd");
-	
+		sendEmails();
+		
 		System.out.println("Done updating deposits");
 		
 	}
 	
 	
-	private void update(String currency) {
+	public void update(String currency) {
 		
 		System.out.println("Updating "+currency);
 		
@@ -99,7 +101,7 @@ public class DepositMonitor {
 			processOkpayTransferRequests(currency, "readyWithdraw");
 			
 			System.out.println("process pending failed");
-			processPendingTransactions(settings, BitcoinTransaction.class, "completedFailed");
+			processPendingTransactions(settings, OkpayTransaction.class, "completedFailed");
 			
 		}
 		
@@ -373,7 +375,11 @@ public class DepositMonitor {
 			
 			List<FundTransaction> accountTransactions = txByAccount.get(accountFunds.getAccountName());
 			
-			for(FundTransaction transaction : transactions) {
+			if(accountTransactions == null) {
+				continue;
+			}
+			
+			for(FundTransaction transaction : accountTransactions) {
 				
 				String currency = transaction.getCurrency();
 				Double currencyFunds = reserves.get(currency);
@@ -666,5 +672,55 @@ public class DepositMonitor {
 		
 	}
 
+	public void sendEmails() {
+		
+		Long oneWeekAgo = (System.currentTimeMillis() / 1000L) - (7*24*60*60);
+		
+		System.out.println("Sending emails to users from "+oneWeekAgo);
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		List<User> users = new ArrayList<User>();
+		
+		try {
+		Criteria criteria = 
+				Criteria.where("emailVerified").is(false)
+					.andOperator(
+							Criteria.where("live").is(true),
+							Criteria.where("deleted").is(false),
+							Criteria.where("verificationEmailSent").lt(oneWeekAgo)
+					);
+		
+		users = mongoOps.find(new Query(criteria), User.class);
+		} catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		System.out.println("Attempting sending email to "+users.size()+" users.");
+		
+		for(User user : users) {
+			
+			String text =
+					"Thank you for registering with BTC machines Trade!"+
+					"<br/><br/>"+
+					"Please, verify your e-mail address by clicking this link:"+
+					"<br/><br/>"+
+					"<a href=\"http://localhost/Flux/app.html#/verifyemail/"+user.getId()+"\">"+
+					"http://localhost/Flux/app.html#/verifyemail/"+user.getId()+"</a>"+
+					"<br/><br/><br/>"+
+					"Best regards,<br/>"+
+					"BTC machines";
+			
+			Boolean emailSent = EmailSender.send(user.getEmail(), "Verify your BTC machines Trade e-mail address", text);
+			System.out.println("Sending email to "+user.getEmail()+", Success: "+emailSent);
+			
+			if(emailSent) {
+				user.setVerificationEmailSent(System.currentTimeMillis()/1000L);
+				mongoOps.save(user);
+			}
+			
+		}
+		
+	}
 
 }

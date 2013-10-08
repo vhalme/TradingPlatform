@@ -26,6 +26,8 @@ public class AccountFunds implements Serializable {
 	//private Map<String, ServiceInfo> serviceInfos = new HashMap<String, ServiceInfo>();
 	private Map<String, PropertyMap> serviceProperties = new HashMap<String, PropertyMap>();
 	
+	private Boolean deleted = false;
+	
 	public AccountFunds() {
 	}
 
@@ -76,16 +78,14 @@ public class AccountFunds implements Serializable {
 	public void setServiceProperties(Map<String, PropertyMap> serviceProperties) {
 		this.serviceProperties = serviceProperties;
 	}
-	
-	/*
-	public Map<String, ServiceInfo> getServiceInfos() {
-		return serviceInfos;
+
+	public Boolean getDeleted() {
+		return deleted;
 	}
 
-	public void setServiceInfos(Map<String, ServiceInfo> serviceInfos) {
-		this.serviceInfos = serviceInfos;
+	public void setDeleted(Boolean deleted) {
+		this.deleted = deleted;
 	}
-	*/
-	
+
 	
 }

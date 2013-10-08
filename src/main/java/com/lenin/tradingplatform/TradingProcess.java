@@ -10,6 +10,8 @@ import java.util.Map;
 
 import org.codehaus.jettison.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -35,18 +37,12 @@ import com.lenin.tradingplatform.data.repositories.UserRepository;
 @Service
 public class TradingProcess {
 	
-	Map<String, Rate> rateMap = new HashMap<String, Rate>();
-	
-	private Long rateUpdateCounter = 0L;
-	private Long lastRateUpdateTime = 0L;
-	
 	private Long lastTradeTime = 0L;
+	
+	private Map<String, Rate> rateMap = new HashMap<String, Rate>();
 	
 	@Autowired
 	private MongoTemplate mongoTemplate;
-	
-	@Autowired
-	private RateRepository rateRepository;
 	
 	@Autowired
 	private TradingSessionRepository tradingSessionRepository;
@@ -97,11 +93,20 @@ public class TradingProcess {
 			
 			long start = System.currentTimeMillis();
 			
-			System.out.println("Started trade updates "+(new Date()));
+			MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 			
-			System.out.println("Updating rates");
-			updateRates();
-		
+			Query searchRates = new Query(Criteria.where("setType").is("15s")).with(new Sort(Direction.DESC, "time")).limit(10);
+			List<Rate> rates = mongoOps.find(searchRates, Rate.class);
+			
+			rateMap = new HashMap<String, Rate>();
+			for(Rate rate : rates) {
+				rateMap.put(rate.getPair(), rate);
+				System.out.println("Last rate: "+rate.getPair()+"="+rate.getLast()+", "+rate.getMovingAverages().size());
+				if(rateMap.get("ltc_usd") != null && rateMap.get("ltc_btc") != null && rateMap.get("btc_usd") != null) {
+					break;
+				}
+			}
+			
 			System.out.println("Updating trade history");
 			updateTradeHistory();
 			
@@ -127,190 +132,6 @@ public class TradingProcess {
 	
 	
 	
-	private void updateRates() throws Exception {
-		
-		Rate rateLtcUsd = getRate("ltc_usd");
-		Rate rateBtcUsd = getRate("btc_usd");
-		Rate rateLtcBtc = getRate("ltc_btc");
-		
-		List<Rate> rates = new ArrayList<Rate>();
-		rates.add(rateLtcUsd);
-		rates.add(rateBtcUsd);
-		rates.add(rateLtcBtc);
-		rateRepository.save(rates);
-		
-		lastRateUpdateTime = rateLtcUsd.getTime();
-		
-		rateMap = new HashMap<String, Rate>();
-		rateMap.put("ltc_usd", rateLtcUsd);
-		rateMap.put("btc_usd", rateBtcUsd);
-		rateMap.put("ltc_btc", rateLtcBtc);
-		
-		
-		if(rateUpdateCounter > 0) {
-		
-			if(rateUpdateCounter % 4 == 0) {
-				createAverageRates("1min");
-			}
-		
-			if(rateUpdateCounter % 40 == 0) {
-				createAverageRates("10min");
-			}
-		
-			if(rateUpdateCounter % 120 == 0) {
-				createAverageRates("30min");
-			}
-		
-			if(rateUpdateCounter % 960 == 0) {
-				createAverageRates("4h");
-			}
-		
-			if(rateUpdateCounter % 1440 == 0) {
-				createAverageRates("6h");
-				rateUpdateCounter = 0L;
-			}
-			
-		}
-		
-		rateUpdateCounter++;
-		
-	}
-	
-	
-	private void createAverageRates(String setType) {
-		
-		Rate avgLtcUsd = getAverageRate("ltc_usd", setType);
-		Rate avgBtcUsd = getAverageRate("btc_usd", setType);
-		Rate avgLtcBtc = getAverageRate("ltc_btc", setType);
-		
-		List<Rate> avgRates = new ArrayList<Rate>();
-		avgRates.add(avgLtcUsd);
-		avgRates.add(avgBtcUsd);
-		avgRates.add(avgLtcBtc);
-		
-		rateRepository.save(avgRates);
-		
-	}
-	
-	
-	private Rate getAverageRate(String pair, String setType) {
-		
-		Long period = 0L;
-		
-		if(setType.equals("1min")) {
-			period = 60L;
-		} else if(setType.equals("10min")) {
-			period = 600L;
-		} else if(setType.equals("30min")) {
-			period = 1800L;
-		} else if(setType.equals("4h")) {
-			period = 14400L;
-		} else if(setType.equals("6h")) {
-			period = 21600L;
-		}
-		
-		List<Rate> rates = rateRepository.findByPairAndTimeGreaterThanOrderByTimeAsc(pair, lastRateUpdateTime - period);
-		
-		Integer count = 0;
-		Double totalLast = 0.0;
-		Double totalBuy = 0.0;
-		Double totalSell = 0.0;
-		Double totalAverage = 0.0;
-		
-		Rate first = rates.get(0);
-		Rate last = rates.get(rates.size()-1);
-		Double open = first.getLast();
-		Double close = last.getLast();
-		Double high = first.getLast();
-		Double low = first.getLast();
-		
-		for(Rate rate : rates) {
-			
-			if(rate.getLast() > high) {
-				high = rate.getLast();
-			}
-			
-			if(rate.getLast() < low) {
-				low = rate.getLast();
-			}
-			
-			totalLast += rate.getLast();
-			totalBuy += rate.getBuy();
-			totalSell += rate.getSell();
-			totalAverage += rate.getAverage();
-			
-			count++;
-		
-		}
-		
-		Double avgLast = 0.0;
-		Double avgBuy = 0.0;
-		Double avgSell = 0.0;
-		Double avgAverage = 0.0;
-		
-		if(count > 0) {
-			avgLast = totalLast/count;
-			avgBuy = totalBuy/count;
-			avgSell = totalSell/count;
-			avgAverage = totalAverage/count;
-		}
-		
-		Rate avgRate = new Rate();
-		avgRate.setSetType(setType);
-		avgRate.setPair(pair);
-		avgRate.setTime(lastRateUpdateTime);
-		
-		avgRate.setLast(avgLast);
-		avgRate.setBuy(avgBuy);
-		avgRate.setSell(avgSell);
-		avgRate.setOpen(open);
-		avgRate.setClose(close);
-		avgRate.setHigh(high);
-		avgRate.setLow(low);
-		
-		return avgRate;
-		
-	}
-	
-	
-	private Rate getRate(String pair) {
-		
-		try {
-			
-			BtceApi btceApi = new BtceApi("", "");
-			btceApi.setOrderFee(0.002);
-			
-			Rate rate = new Rate();
-		
-			JSONObject ratesResult = btceApi.getRates(pair);
-			JSONObject rateJson = ratesResult.getJSONObject("ticker");
-			
-			rate.setSetType("15s");
-			rate.setPair(pair);
-			rate.setLast(rateJson.getDouble("last"));
-			rate.setBuy(rateJson.getDouble("buy"));
-			rate.setSell(rateJson.getDouble("sell"));
-			rate.setHigh(rateJson.getDouble("high"));
-			rate.setLow(rateJson.getDouble("low"));
-			rate.setAverage(rateJson.getDouble("avg"));
-			rate.setOpen(rate.getLast());
-			rate.setClose(rate.getLast());
-			rate.setVolume(rateJson.getDouble("vol"));
-			rate.setCurrentVolume(rateJson.getDouble("vol_cur"));
-			rate.setTime(rateJson.getLong("server_time"));
-			
-			return rate;
-			
-		} catch(Exception e) {
-			
-			e.printStackTrace();
-			return null;
-			
-		}
-    	
-	}
-	
-	
 	private void updateTradeHistory() throws Exception {
 		
 		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
@@ -331,6 +152,7 @@ public class TradingProcess {
 				continue;
 			}
 			
+			/*
 			Query searchTrades = new Query(Criteria.where("accountFunds").is(account));
 			List<Trade> savedTrades = mongoOps.find(searchTrades, Trade.class);
 			
@@ -338,6 +160,14 @@ public class TradingProcess {
 				if(trade.getLive() == true && trade.getTime() > lastTradeTime) {
 					lastTradeTime = trade.getTime();
 				}
+			}
+			*/
+			
+			lastTradeTime = user.getLastBtceTradeTime();
+			if(lastTradeTime == 0) {
+				lastTradeTime = System.currentTimeMillis()/1000L;
+				user.setLastBtceTradeTime(lastTradeTime);
+				userRepository.save(user);
 			}
 			
 			BtceApi btceApi = new BtceApi(accountKey, accountSecret);
@@ -395,69 +225,76 @@ public class TradingProcess {
 				userBtceFunds.put("usd", userFundsUsd);
 			
 				mongoOps.save(account);
-			
-			}
-			
-			JSONObject tradeListResult = btceApi.getTradeList(lastTradeTime+1);
-			
-			try {
-			
-				if(tradeListResult.getInt("success") == 1) {
 				
-					JSONObject tradeListResultData = tradeListResult.getJSONObject("return");
-					Iterator<String> tradeIds = tradeListResultData.keys();
+				JSONObject tradeListResult = btceApi.getTradeList(lastTradeTime+1);
 				
-					List<Trade> trades = new ArrayList<Trade>();
+				try {
 				
-					while(tradeIds.hasNext()) {
+					if(tradeListResult.getInt("success") == 1) {
 					
-						String tradeId = tradeIds.next();
-						JSONObject tradeData = tradeListResultData.getJSONObject(tradeId);
+						JSONObject tradeListResultData = tradeListResult.getJSONObject("return");
+						Iterator<String> tradeIds = tradeListResultData.keys();
 					
-						String orderId = tradeData.getString("order_id");
-						String pair = tradeData.getString("pair");
-						Double amount = tradeData.getDouble("amount");
-						Double rate = tradeData.getDouble("rate");
-						String type = tradeData.getString("type");
-						Long time = tradeData.getLong("timestamp");
+						List<Trade> trades = new ArrayList<Trade>();
 					
-						Trade trade = new Trade();
-						trade.setService("btce");
-						trade.setAccountFunds(account);
-						trade.setLive(true);
-						trade.setOrderId(orderId);
-						trade.setPair(pair);
-						trade.setAmount(amount);
-						trade.setRate(rate);
-						trade.setType(type);
-						trade.setTime(time);
+						while(tradeIds.hasNext()) {
+						
+							String tradeId = tradeIds.next();
+							JSONObject tradeData = tradeListResultData.getJSONObject(tradeId);
+						
+							String orderId = tradeData.getString("order_id");
+							String pair = tradeData.getString("pair");
+							Double amount = tradeData.getDouble("amount");
+							Double rate = tradeData.getDouble("rate");
+							String type = tradeData.getString("type");
+							Long time = tradeData.getLong("timestamp");
+						
+							Trade trade = new Trade();
+							trade.setService("btce");
+							trade.setAccountFunds(account);
+							trade.setLive(true);
+							trade.setOrderId(orderId);
+							trade.setPair(pair);
+							trade.setAmount(amount);
+							trade.setRate(rate);
+							trade.setType(type);
+							trade.setTime(time);
+						
+							trades.add(trade);
+						
+							if(time > lastTradeTime) {
+								lastTradeTime = time;
+							}
+						
+						}
 					
-						trades.add(trade);
+						if(trades.size() > 0) {
+							
+							System.out.println("New trades: "+trades.size()+"; Last trade time: "+lastTradeTime);
+							tradeRepository.save(trades);
+						
+							user.setLastBtceTradeTime(lastTradeTime);
+							userRepository.save(user);
+							
+						}
 					
-						if(time > lastTradeTime) {
-							lastTradeTime = time;
+					} else {
+					
+						String error = tradeListResult.getString("error");
+						if(!error.equals("no trades")) {
+							BtceApi._nonce = System.currentTimeMillis() / 10000L;
+							System.out.println("Trades update unsuccessful: "+error);
 						}
 					
 					}
 				
-					if(trades.size() > 0) {
-						System.out.println("New trades: "+trades.size()+"; Last trade time: "+lastTradeTime);
-						tradeRepository.save(trades);
-					}
-				
-				} else {
-				
-					String error = tradeListResult.getString("error");
-					if(!error.equals("no trades")) {
-						BtceApi._nonce = System.currentTimeMillis() / 10000L;
-						System.out.println("Trades update unsuccessful: "+error);
-					}
-				
+				} catch(Exception e) {
+					e.printStackTrace();
 				}
+				
 			
-			} catch(Exception e) {
-				e.printStackTrace();
 			}
+			
 			
 		}
 		
@@ -467,11 +304,11 @@ public class TradingProcess {
 	
 	private void updateOrders() throws Exception {
 		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
 		Rate ltc_usd = rateMap.get("ltc_usd");
 		Rate btc_usd = rateMap.get("btc_usd");
 		Rate ltc_btc = rateMap.get("ltc_btc");
-		
-		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
 		List<User> users = userRepository.findAll();
 		
@@ -602,7 +439,7 @@ public class TradingProcess {
 	
 	private void updateTradingSessions() throws Exception {
 		
-		List<User> users = userRepository.findAll();
+		List<User> users = userRepository.findByDeleted(false);
 		
 		//System.out.println("Trade stats total: "+allTradingSession.size());
 		
@@ -614,40 +451,38 @@ public class TradingProcess {
 			
 				TradingSession tradingSession = tradingSessions.get(i);
 				//System.out.println(tradingSession.getId()+": "+tradingSession.getLive());
-			
-			
+				
 				if(tradingSession.getLive() == true) {
 				
 					Rate tickerQuote = rateMap.get(tradingSession.getPair());
-					//System.out.println("ticker for "+tradingSession.getPair()+": "+tickerQuote.getLast());
 				
 					if(tickerQuote != null) {
 						tradingSession.setRate(tickerQuote);
 					}
 				
 				} else {
-				
-				
+					
+					
 					Rate rate = tradingSession.getRate();
 					rate.setTime(System.currentTimeMillis()/1000L);
-				
+					
 					tradingSession.setRate(rate);
-				
+					
 				}
 			
-			
+				
 				Boolean resetOldRate =
 						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() > tradingSession.getAutoTradingOptions().getBuyThreshold()) && 
 							tradingSession.getRate().getLast() < tradingSession.getAutoTradingOptions().getBuyCeiling() ) ||
 						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() < - tradingSession.getAutoTradingOptions().getSellThreshold()) &&
 							tradingSession.getRate().getLast() > tradingSession.getAutoTradingOptions().getSellFloor() );
-			
+				
 				if(tradingSession.getOldRate() == 0.0 || resetOldRate) {
 					tradingSession.setOldRate(tradingSession.getRate().getLast());
 				}
 			
 				tradingSessionRepository.save(tradingSession);
-			
+				
 				//System.out.println(tradingSession.getPair()+"("+tradingSession.getId()+"): "+tradingSession.getRate());
 			
 				if(tradingSession.getAutoTradingOptions().getTradeAuto() == true && tradingSession.getRate().getLast() != 0.0) {

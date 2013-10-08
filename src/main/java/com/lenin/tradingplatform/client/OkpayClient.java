@@ -124,7 +124,7 @@ public class OkpayClient {
 				
 				transaction.setTime(txTime);
 				
-				/*
+				
 				System.out.println(txDateStr);
 				System.out.println("Amount: "+txAmount);
 				System.out.println("Net amount: "+txNetAmount);
@@ -135,7 +135,7 @@ public class OkpayClient {
 				System.out.println("Currency: "+txCurrency);
 				
 				System.out.println("OPNAME: "+txInfo.getOperationName().getValue()+", STATUS: "+txInfo.getStatus().value()+", FEES: "+txInfo.getFees());
-				*/
+				
 				
 				if(txReceiverWallet.equals(sourceId)) {
 					transaction.setAmount(Math.abs(txNetAmount));

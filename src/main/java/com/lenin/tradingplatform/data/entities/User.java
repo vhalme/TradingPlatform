@@ -20,12 +20,17 @@ public class User implements Serializable {
 	private String id;
 	
 	private Boolean live = false;
+	private Boolean deleted = false;
 	
 	private String email;
 	private String username;
 	private String password;
 	private String authToken;
+	private String lastIp;
 	private Long lastActivity;
+	
+	private Boolean emailVerified = false;
+	private Long verificationEmailSent = 0L;
 	
 	@DBRef
 	private List<TradingSession> tradingSessions = new ArrayList<TradingSession>();
@@ -35,6 +40,8 @@ public class User implements Serializable {
 	
 	@DBRef
 	private AccountFunds accountFunds;
+	
+	private Long lastBtceTradeTime = 0L;
 	
 	
 	public User() {
@@ -105,6 +112,14 @@ public class User implements Serializable {
 	}
 	
 	
+	public String getLastIp() {
+		return lastIp;
+	}
+
+	public void setLastIp(String lastIp) {
+		this.lastIp = lastIp;
+	}
+
 	public Long getLastActivity() {
 		return lastActivity;
 	}
@@ -115,6 +130,23 @@ public class User implements Serializable {
 
 	
 	
+	public Boolean getEmailVerified() {
+		return emailVerified;
+	}
+
+	public void setEmailVerified(Boolean emailVerified) {
+		this.emailVerified = emailVerified;
+	}
+	
+	
+	public Long getVerificationEmailSent() {
+		return verificationEmailSent;
+	}
+
+	public void setVerificationEmailSent(Long verificationEmailSent) {
+		this.verificationEmailSent = verificationEmailSent;
+	}
+
 	public AccountFunds getAccountFunds() {
 		return accountFunds;
 	}
@@ -123,6 +155,7 @@ public class User implements Serializable {
 		this.accountFunds = accountFunds;
 	}
 
+	
 	public Double getFunds(String fund) {
 		
 		if(fund.equals("left")) {
@@ -150,5 +183,22 @@ public class User implements Serializable {
 		tradingSessions.add(tradingSession);
 	}
 
+	public Boolean getDeleted() {
+		return deleted;
+	}
 
+	public void setDeleted(Boolean deleted) {
+		this.deleted = deleted;
+	}
+
+	public Long getLastBtceTradeTime() {
+		return lastBtceTradeTime;
+	}
+
+	public void setLastBtceTradeTime(Long lastBtceTradeTime) {
+		this.lastBtceTradeTime = lastBtceTradeTime;
+	}
+
+	
+	
 }

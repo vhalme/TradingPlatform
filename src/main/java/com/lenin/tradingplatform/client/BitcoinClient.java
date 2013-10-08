@@ -169,9 +169,9 @@ public class BitcoinClient {
 		BitcoinApi api = null;
 		
 		if(currency.equals("ltc")) {
-			api = new BitcoinApi("82.196.14.26", 8332, "fluxltc1", "fLuxThuyu1eP");
+			api = new BitcoinApi("127.0.0.1", 9332, "fluxltc1", "fLuxThuyu1eP");
 		} else if(currency.equals("btc")) {
-			api = new BitcoinApi("82.196.8.147", 9332, "fluxltc1", "fLuxThuyu1eP");
+			api = new BitcoinApi("127.0.0.1", 9332, "fluxltc1", "fLuxThuyu1eP");
 		}
 		
 		return api;

@@ -185,11 +185,10 @@ public class BtceApi {
         
 		Long newNonce = (System.currentTimeMillis() / 1000L) + 100L;
 		
-		/*
+		
 		if(newNonce <= _nonce) {
 			newNonce = _nonce+1;
 		}
-		*/
 		
 		_nonce = newNonce;
 		
@@ -214,7 +213,7 @@ public class BtceApi {
         HttpClient httpclient = new DefaultHttpClient();
         
         HttpParams httpParams = new BasicHttpParams();
-	    HttpConnectionParams.setConnectionTimeout(httpParams, 30000);
+	    HttpConnectionParams.setConnectionTimeout(httpParams, 6000);
 	    
         HttpPost httppost = new HttpPost("https://btc-e.com/tapi");
         

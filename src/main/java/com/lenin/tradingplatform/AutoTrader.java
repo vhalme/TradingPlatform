@@ -64,16 +64,19 @@ public class AutoTrader {
 		
 		if(reversibleBuys.size() == 0 && reversibleSells.size() == 0) {
 			
+			Double sellThreshold = tradingSession.getRate().getSell()*(options.getSellThreshold()/100.0);
+			Double buyThreshold = tradingSession.getRate().getBuy()*(options.getBuyThreshold()/100.0);
+			
 			Double sellRate = tradingSession.getRate().getSell();
 			Double buyRate = tradingSession.getRate().getBuy();
 			
 			Double sellRateChange = sellRate - highestSell;
 			Double buyRateChange = buyRate - lowestBuy;
 			
-			System.out.println("NEW SELL? "+sellRateChange +" >= "+options.getSellThreshold()+" (src = "+sellRate+" - "+highestSell+")");
-			System.out.println("NEW BUY? "+buyRateChange +" <="+ -(options.getBuyThreshold())+" (brc = "+buyRate+" - "+lowestBuy+")");
+			System.out.println("NEW SELL? "+sellRateChange +" >= "+sellThreshold+" (src = "+sellRate+" - "+highestSell+")");
+			System.out.println("NEW BUY? "+buyRateChange +" <="+ -buyThreshold+" (brc = "+buyRate+" - "+lowestBuy+")");
 			
-			if(sellRateChange >= options.getSellThreshold()) {
+			if(sellRateChange >= sellThreshold) {
 				
 				Double tradeChunk = options.getSellChunk();
 				
@@ -94,7 +97,7 @@ public class AutoTrader {
 				
 				}
 			
-			} else if(buyRateChange <= -(options.getBuyThreshold())) {
+			} else if(buyRateChange <= -buyThreshold) {
 				
 				Double tradeChunk = options.getBuyChunk();
 				
@@ -135,7 +138,8 @@ public class AutoTrader {
 		for(Order order : orders) {
 			
 			Double difference = Math.abs(order.getRate()-tradingSession.getRate().getSell());
-			Boolean withinRange = difference < tradingSession.getAutoTradingOptions().getBuyThreshold();
+			Double sellThreshold = tradingSession.getRate().getSell()*(tradingSession.getAutoTradingOptions().getBuyThreshold()/100.0);
+			Boolean withinRange = difference < sellThreshold;
 			
 			if(withinRange || order.getIsFilled()) {
 				if(lowest == null) {
@@ -163,7 +167,8 @@ public class AutoTrader {
 		for(Order order : orders) {
 			
 			Double difference = Math.abs(order.getRate()-tradingSession.getRate().getBuy());
-			Boolean withinRange = difference < tradingSession.getAutoTradingOptions().getSellThreshold();
+			Double buyThreshold = tradingSession.getRate().getBuy()*(tradingSession.getAutoTradingOptions().getSellThreshold()/100.0);
+			Boolean withinRange = difference < buyThreshold;
 			
 			if(withinRange || order.getIsFilled()) {
 				if(highest == null) {
@@ -195,11 +200,12 @@ public class AutoTrader {
 			Double rateVal = order.getRate();
 			Double amountVal = order.getAmount();
 			
-			System.out.println(tradingSession.getRate().getBuy()+" <= "+(rateVal - tradingSession.getAutoTradingOptions().getSellThreshold()));
+			Double sellThreshold = order.getRate()*(tradingSession.getAutoTradingOptions().getSellThreshold()/100.0);
+			System.out.println(tradingSession.getRate().getBuy()+" <= "+(rateVal - sellThreshold));
 			
 			Boolean isFilled = order.getIsFilled();
 			
-			if(isFilled && tradingSession.getRate().getBuy() <= (rateVal - tradingSession.getAutoTradingOptions().getSellThreshold())) {
+			if(isFilled && tradingSession.getRate().getBuy() <= (rateVal - sellThreshold)) {
 					
 				Double actualBuyRate = client.actualTradeRate("buy");
 				
@@ -240,9 +246,11 @@ public class AutoTrader {
 			
 			Boolean isFilled = order.getIsFilled();
 			
-			System.out.println(tradingSession.getRate().getSell() +" >= "+ (rateVal + tradingSession.getAutoTradingOptions().getBuyThreshold()));
+			Double buyThreshold = order.getRate()*(tradingSession.getAutoTradingOptions().getBuyThreshold()/100.0);
+			
+			System.out.println(tradingSession.getRate().getSell() +" >= "+ (rateVal + buyThreshold));
 					
-			if(isFilled && tradingSession.getRate().getSell() >= (rateVal + tradingSession.getAutoTradingOptions().getBuyThreshold())) {
+			if(isFilled && tradingSession.getRate().getSell() >= (rateVal + buyThreshold)) {
 				
 				Double actualSellRate = client.actualTradeRate("sell");
 				Double newSellAmount = calculatedSellAmount + amountVal;

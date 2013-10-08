@@ -51,8 +51,9 @@ public class BitcoinApi {
 		DefaultHttpClient httpclient = new DefaultHttpClient();
 		
 		HttpParams httpParams = new BasicHttpParams();
-	    HttpConnectionParams.setConnectionTimeout(httpParams, 30000);
-	    
+	    HttpConnectionParams.setConnectionTimeout(httpParams, 6000);
+	    HttpConnectionParams.setSoTimeout(httpParams, 6000);
+	    HttpConnectionParams.setLinger(httpParams, 0);
 		httpclient.getCredentialsProvider().setCredentials(
 				new AuthScope(host, port, AuthScope.ANY_REALM),
 				new UsernamePasswordCredentials(username, password));
@@ -63,6 +64,7 @@ public class BitcoinApi {
 		System.out.println("Connecting to host: "+hostUrl);
 		
 		HttpPost httppost = new HttpPost(hostUrl);
+		httppost.setParams(httpParams);
 		httppost.setHeader("Content-type", "application/json");
 
 		try {
