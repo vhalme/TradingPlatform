@@ -79,6 +79,12 @@ public class RatesUpdateProcess {
 		
 		} catch(Exception e) {
 			
+			System.out.println(e.getMessage());
+			StackTraceElement[] trace = e.getStackTrace();
+			for(int i=0; i<trace.length; i++) {
+				System.out.println(trace[i].toString());
+			}
+			
 			e.printStackTrace();
 			
 		}

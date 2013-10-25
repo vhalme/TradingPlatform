@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import com.lenin.tradingplatform.client.BtceApi;
 import com.lenin.tradingplatform.client.TradingClient;
 import com.lenin.tradingplatform.data.entities.AccountFunds;
+import com.lenin.tradingplatform.data.entities.AutoTradingOptions;
+import com.lenin.tradingplatform.data.entities.ErrorMessage;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.PropertyMap;
 import com.lenin.tradingplatform.data.entities.Rate;
@@ -182,54 +184,135 @@ public class TradingProcess {
 				try {
 					
 					userInfoResult = btceApi.getAccountInfo();
-					userInfo = userInfoResult.getJSONObject("return");
-					userFunds = userInfo.getJSONObject("funds");
+					
+					if(userInfoResult != null) {
+					
+					Boolean errorsChanged = false;
+					
+					List<ErrorMessage> userErrors = user.getErrors();
+					List<ErrorMessage> errorsToRemove = new ArrayList<ErrorMessage>();
+					for(ErrorMessage userError : userErrors) {
+						if(userError.getCode() == 0) {
+							errorsToRemove.add(userError);
+						}
+					}
+					
+					if(errorsToRemove.size() > 0) {
+						errorsChanged = true;
+						userErrors.removeAll(errorsToRemove);
+					}
+					
+					if(userInfoResult.getInt("success") == 1) {
+						
+						userInfo = userInfoResult.getJSONObject("return");
+						userFunds = userInfo.getJSONObject("funds");
+						JSONObject apiRights = userInfo.getJSONObject("rights");
+						
+						if(apiRights.getInt("trade") == 0) {
+							ErrorMessage errorMessage = new ErrorMessage();
+							errorMessage.setMessage("api key dont have trade permission");
+							errorMessage.setCode(0);
+							userErrors.add(errorMessage);
+							errorsChanged = true;
+						}
+
+						List<TradingSession> tradingSessions = user.getTradingSessions();
+						
+						for(TradingSession tradingSession : tradingSessions) {
+						
+							if(tradingSession.getService().equals("btce") && tradingSession.getLive() == true) {
+							
+								String currencyLeft = tradingSession.getCurrencyLeft();
+								String currencyRight = tradingSession.getCurrencyRight();
+							
+								Double accountFundsLeft = userFunds.getDouble(currencyLeft);
+								Double accountFundsRight = userFunds.getDouble(currencyRight);
+								Double sessionFundsLeft = tradingSession.getFundsLeft();
+								Double sessionFundsRight = tradingSession.getFundsRight();
+							
+								System.out.println("Session "+tradingSession.getPair()+": "+currencyLeft+"> "+accountFundsLeft+" - "+sessionFundsLeft);
+								System.out.println("Session "+tradingSession.getPair()+": "+currencyRight+"> "+accountFundsRight+" - "+sessionFundsRight);
+								userFunds.put(currencyLeft, accountFundsLeft - sessionFundsLeft);
+								userFunds.put(currencyRight, accountFundsRight - sessionFundsRight);
+							
+							}
+						
+						}
+					
+						Double userFundsBtc = userFunds.getDouble("btc");
+						Double userFundsLtc = userFunds.getDouble("ltc");
+						Double userFundsUsd = userFunds.getDouble("usd");
+					
+						System.out.println("Final funds: "+userFundsBtc+"/"+userFundsLtc+"/"+userFundsUsd);
+					
+						Map<String, Double> userBtceFunds = account.getActiveFunds().get("btce");
+						userBtceFunds.put("btc", userFundsBtc);
+						userBtceFunds.put("ltc", userFundsLtc);
+						userBtceFunds.put("usd", userFundsUsd);
+					
+						mongoOps.save(account);
+					
+					} else {
+						
+						String error = userInfoResult.getString("error");
+						
+						if(!error.startsWith("invalid nonce parameter")) {
+							
+							//equals("invalid api key") || error.equals("api key dont have info permission")
+							
+							System.out.println("There was an error: "+error);
+							
+							ErrorMessage errorMessage = new ErrorMessage();
+							errorMessage.setMessage(error);
+							errorMessage.setCode(0);
+							userErrors.add(errorMessage);
+							
+							errorsChanged = true;
+							
+							
+						} else {
+							
+							//BtceApi._nonce = System.currentTimeMillis() / 1000L;
+							System.out.println("Info update unsuccessful: "+error);
+							
+						}
+						
+						
+					}
+					
+					if(errorsChanged) {
+						userRepository.save(user);
+					}
+					
+					}
 					
 				} catch(Exception e) {
 					e.printStackTrace();
 					continue;
 				}
 				
-				List<TradingSession> tradingSessions = user.getTradingSessions();
-			
-				for(TradingSession tradingSession : tradingSessions) {
-				
-					if(tradingSession.getService().equals("btce") && tradingSession.getLive() == true) {
-					
-						String currencyLeft = tradingSession.getCurrencyLeft();
-						String currencyRight = tradingSession.getCurrencyRight();
-					
-						Double accountFundsLeft = userFunds.getDouble(currencyLeft);
-						Double accountFundsRight = userFunds.getDouble(currencyRight);
-						Double sessionFundsLeft = tradingSession.getFundsLeft();
-						Double sessionFundsRight = tradingSession.getFundsRight();
-					
-						System.out.println("Session "+tradingSession.getPair()+": "+currencyLeft+"> "+accountFundsLeft+" - "+sessionFundsLeft);
-						System.out.println("Session "+tradingSession.getPair()+": "+currencyRight+"> "+accountFundsRight+" - "+sessionFundsRight);
-						userFunds.put(currencyLeft, accountFundsLeft - sessionFundsLeft);
-						userFunds.put(currencyRight, accountFundsRight - sessionFundsRight);
-					
-					}
-				
-				}
-			
-				Double userFundsBtc = userFunds.getDouble("btc");
-				Double userFundsLtc = userFunds.getDouble("ltc");
-				Double userFundsUsd = userFunds.getDouble("usd");
-			
-				System.out.println("Final funds: "+userFundsBtc+"/"+userFundsLtc+"/"+userFundsUsd);
-			
-				Map<String, Double> userBtceFunds = account.getActiveFunds().get("btce");
-				userBtceFunds.put("btc", userFundsBtc);
-				userBtceFunds.put("ltc", userFundsLtc);
-				userBtceFunds.put("usd", userFundsUsd);
-			
-				mongoOps.save(account);
 				
 				JSONObject tradeListResult = btceApi.getTradeList(lastTradeTime+1);
 				
-				try {
+				if(tradeListResult != null) {
 				
+				try {
+					
+					Boolean errorsChanged = false;
+					
+					List<ErrorMessage> userErrors = user.getErrors();
+					List<ErrorMessage> errorsToRemove = new ArrayList<ErrorMessage>();
+					for(ErrorMessage userError : userErrors) {
+						if(userError.getCode() == 1) {
+							errorsToRemove.add(userError);
+						}
+					}
+					
+					if(errorsToRemove.size() > 0) {
+						errorsChanged = true;
+						userErrors.removeAll(errorsToRemove);
+					}
+					
 					if(tradeListResult.getInt("success") == 1) {
 					
 						JSONObject tradeListResultData = tradeListResult.getJSONObject("return");
@@ -281,17 +364,44 @@ public class TradingProcess {
 					} else {
 					
 						String error = tradeListResult.getString("error");
-						if(!error.equals("no trades")) {
-							BtceApi._nonce = System.currentTimeMillis() / 10000L;
+						
+						if(!error.startsWith("invalid nonce parameter")) {
+							
+							//equals("invalid api key") || error.equals("api key dont have info permission")
+							if(!error.equals("no trades")) {
+							
+								System.out.println("There was an error: "+error);
+								
+								/*
+								ErrorMessage errorMessage = new ErrorMessage();
+								errorMessage.setMessage(error);
+								errorMessage.setCode(1);
+								userErrors.add(errorMessage);
+								
+								errorsChanged = true;
+								*/
+								
+							}
+							
+						} else {
+							
+							//BtceApi._nonce = System.currentTimeMillis() / 1000L;
 							System.out.println("Trades update unsuccessful: "+error);
-						}
+							
+						}	
+						
 					
+					}
+					
+					if(errorsChanged) {
+						userRepository.save(user);
 					}
 				
 				} catch(Exception e) {
 					e.printStackTrace();
 				}
 				
+				}
 			
 			}
 			
@@ -387,7 +497,7 @@ public class TradingProcess {
 								tradingSession.setProfitLeft(profitLeft + tradeProfit);
 								
 								String orderMode = reversedOrder.getMode();
-								if(orderMode != null && !orderMode.equals("manual")) {
+								if(orderMode != null && !orderMode.equals("manual") && user.getLive() == true) {
 									processProfit(user, tradeProfit, profitSide, tradingSession);
 								}
 								
@@ -469,12 +579,15 @@ public class TradingProcess {
 					tradingSession.setRate(rate);
 					
 				}
-			
+				
+				AutoTradingOptions options = tradingSession.getAutoTradingOptions();
+				Double sellThreshold = tradingSession.getRate().getSell()*(options.getSellThreshold()/100.0);
+				Double buyThreshold = tradingSession.getRate().getBuy()*(options.getBuyThreshold()/100.0);
 				
 				Boolean resetOldRate =
-						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() > tradingSession.getAutoTradingOptions().getBuyThreshold()) && 
+						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() > buyThreshold) && 
 							tradingSession.getRate().getLast() < tradingSession.getAutoTradingOptions().getBuyCeiling() ) ||
-						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() < - tradingSession.getAutoTradingOptions().getSellThreshold()) &&
+						( (tradingSession.getRate().getLast() - tradingSession.getOldRate() < - sellThreshold) &&
 							tradingSession.getRate().getLast() > tradingSession.getAutoTradingOptions().getSellFloor() );
 				
 				if(tradingSession.getOldRate() == 0.0 || resetOldRate) {
@@ -554,6 +667,10 @@ public class TradingProcess {
 	
 	public void processProfit(User user, Double tradeProfit, String profitSide, TradingSession tradingSession) {
 		
+		Map<String, Map<String, Double>> serviceFees = settings.getServiceFees();
+		Map<String, Double> profitSharingFees = serviceFees.get("profit");
+		Double share = profitSharingFees.get("share");
+		
 		AccountFunds accountFunds = user.getAccountFunds();
 		Map<String, Double> reserves = accountFunds.getReserves();
 		
@@ -567,7 +684,7 @@ public class TradingProcess {
 		String paymentCurrency = (String)currentPeriod.get("currency");
 		Map<String, String> periodProfits = (Map<String, String>)currentPeriod.get("sharedProfit");
 		
-		Double profitShare = tradeProfit * 0.1;
+		Double profitShare = tradeProfit * share;
 		
 		if(paymentMethod.equals("profit")) {
 			

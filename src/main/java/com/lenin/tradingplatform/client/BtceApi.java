@@ -74,7 +74,12 @@ public class BtceApi {
 				in.close();
     	    	instream.close();
     	    	
-    	    	jsonResult = new JSONObject(resultStr);
+    	    	if(!resultStr.startsWith("{")) {
+    	    		System.out.println("Malformed response from BTC-e, returning null.");
+    	    		return null;
+    	    	} else {
+    	    		jsonResult = new JSONObject(resultStr);
+    	    	}
     	    	
 			}
 			
@@ -255,6 +260,11 @@ public class BtceApi {
             	}
             	
         		System.out.println(result);
+        		
+        		if(!result.startsWith("{")) {
+    	    		System.out.println("Malformed response from BTC-e, returning null.");
+    	    		return null;
+    	    	}
         		
         	}
             

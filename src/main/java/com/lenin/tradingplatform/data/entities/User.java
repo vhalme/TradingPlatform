@@ -43,6 +43,8 @@ public class User implements Serializable {
 	
 	private Long lastBtceTradeTime = 0L;
 	
+	private List<ErrorMessage> errors = new ArrayList<ErrorMessage>();
+	
 	
 	public User() {
 	}
@@ -199,6 +201,15 @@ public class User implements Serializable {
 		this.lastBtceTradeTime = lastBtceTradeTime;
 	}
 
+	public List<ErrorMessage> getErrors() {
+		return errors;
+	}
+
+	public void setErrors(List<ErrorMessage> errors) {
+		this.errors = errors;
+	}
+
+	
 	
 	
 }

@@ -705,8 +705,8 @@ public class DepositMonitor {
 					"<br/><br/>"+
 					"Please, verify your e-mail address by clicking this link:"+
 					"<br/><br/>"+
-					"<a href=\"http://localhost/Flux/app.html#/verifyemail/"+user.getId()+"\">"+
-					"http://localhost/Flux/app.html#/verifyemail/"+user.getId()+"</a>"+
+					"<a href=\""+EmailSender.hostName+"/#/verifyemail/"+user.getId()+"\">"+
+					EmailSender.hostName+"/#/verifyemail/"+user.getId()+"</a>"+
 					"<br/><br/><br/>"+
 					"Best regards,<br/>"+
 					"BTC machines";

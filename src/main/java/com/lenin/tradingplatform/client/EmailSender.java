@@ -12,9 +12,14 @@ import javax.mail.internet.MimeMessage;
 
 public class EmailSender {
 
+	public static String hostName = "http://btcmachin.es";
+	//public static String hostName = "http://localhost/Flux";
+	
 	public static Boolean send(String emailAddress, String subject, String text) {
 		
 		Boolean sendOk = false;
+		
+		System.out.println("Settin up e-mail properties");
 		
 		Properties props = new Properties();
 		props.put("mail.smtp.host", "smtp.gmail.com");
@@ -24,23 +29,28 @@ public class EmailSender {
 		props.put("mail.smtp.auth", "true");
 		props.put("mail.smtp.port", "465");
 
-		Session session = Session.getDefaultInstance(props,
-				new javax.mail.Authenticator() {
-					protected PasswordAuthentication getPasswordAuthentication() {
-						return new PasswordAuthentication("vladimir.halme@gmail.com",
-								"vLadGoogleThuyu5eP");
-					}
-				});
-
 		try {
-
+			
+			System.out.println("Settin up e-mail session");
+			
+			Session session = Session.getDefaultInstance(props,
+					new javax.mail.Authenticator() {
+						protected PasswordAuthentication getPasswordAuthentication() {
+							return new PasswordAuthentication("btcmachines@gmail.com",
+									"bTcmGoogleThuyu5eP");
+						}
+					});
+			
+			System.out.println("Creating message");
+			
 			MimeMessage message = new MimeMessage(session);
-			message.setFrom(new InternetAddress("from@no-spam.com"));
+			message.setFrom(new InternetAddress("btcmachines@gmail.com"));
 			message.setRecipients(Message.RecipientType.TO,
 					InternetAddress.parse(emailAddress));
 			message.setSubject(subject);
 			message.setText(text, "UTF-8", "html");
 
+			System.out.println("Sending message");
 			Transport.send(message);
 			
 			sendOk = true;
