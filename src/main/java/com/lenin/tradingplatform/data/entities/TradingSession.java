@@ -2,6 +2,9 @@ package com.lenin.tradingplatform.data.entities;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
@@ -48,6 +51,7 @@ public class TradingSession implements Serializable {
 	
 	private Boolean tradeOk = false;
 	
+	private Map<String, List<ErrorMessage>> errors = new HashMap<String, List<ErrorMessage>>();
 	
 	public TradingSession() {
 	}
@@ -238,6 +242,14 @@ public class TradingSession implements Serializable {
 
 	public void setTradeOk(Boolean tradeOk) {
 		this.tradeOk = tradeOk;
+	}
+
+	public Map<String, List<ErrorMessage>> getErrors() {
+		return errors;
+	}
+
+	public void setErrors(Map<String, List<ErrorMessage>> errors) {
+		this.errors = errors;
 	}
  	
 	

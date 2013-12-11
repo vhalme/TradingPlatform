@@ -1,5 +1,6 @@
 package com.lenin.tradingplatform;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -14,8 +15,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import com.lenin.tradingplatform.client.BtceApi;
+import com.lenin.tradingplatform.client.RequestResponse;
 import com.lenin.tradingplatform.client.TradingClient;
 import com.lenin.tradingplatform.data.entities.AutoTradingOptions;
+import com.lenin.tradingplatform.data.entities.ErrorMessage;
 import com.lenin.tradingplatform.data.entities.Order;
 import com.lenin.tradingplatform.data.entities.Rate;
 import com.lenin.tradingplatform.data.entities.TradingSession;
@@ -87,6 +90,8 @@ public class MaAutoTrader {
 		
 		System.out.println("lastMaTransaction: "+tradingSession.getLastMaTransactionRate()+", maChange: "+maChange+", sellThreshold: "+sellThreshold+", buyThreshold: "+buyThreshold);
 		
+		String error = null;
+		
 		if(maChange > sellThreshold) {
 			
 			if(prevMaLong < prevMaShort && lastMaLong > lastMaShort) {
@@ -122,6 +127,8 @@ public class MaAutoTrader {
 				Double sellAmount = sellChunk;
 				System.out.println("Sell amount: "+sellAmount);
 				
+				RequestResponse tradeResponse = null;
+				
 				for(Order reversibleBuy : reversibleBuys) {
 					
 					Order reversedOrder = reversibleBuy.getReversedOrder();
@@ -145,20 +152,25 @@ public class MaAutoTrader {
 						sellAmount = sellAmount - orderAmount;
 						if(reversibleBuy.getIsFilled() == true) {
 							System.out.println("FULL BUY/SELL REVERSE ON ("+reversibleBuy.getOrderId()+"/"+reversibleBuy.getAmount()+"/"+reversibleBuy.getRate()+"), sellAmount="+sellAmount);
-							client.reverseTrade(reversibleBuy, false);
+							tradeResponse = client.reverseTrade(reversibleBuy, false);
+							
 						} else {
 							System.out.println("FILL UP BUY/SELL REVERSE ON ("+reversibleBuy.getOrderId()+"/"+reversibleBuy.getAmount()+"/"+reversibleBuy.getRate()+"), sellAmount="+sellAmount);
-							client.partialReverseTrade(reversibleBuy, orderAmount, false);
+							tradeResponse = client.partialReverseTrade(reversibleBuy, orderAmount, false);
 						}
 						
 					} else {
 						
 						System.out.println("PARTIAL BUY/SELL REVERSE ON ("+reversibleBuy.getOrderId()+"/"+reversibleBuy.getAmount()+"/"+reversibleBuy.getRate()+"), sellAmount="+sellAmount);
-						client.partialReverseTrade(reversibleBuy, sellAmount, false);
+						tradeResponse = client.partialReverseTrade(reversibleBuy, sellAmount, false);
 						sellAmount = 0.0;
 						
 					}
 					
+				}
+				
+				if(tradeResponse != null && tradeResponse.getSuccess() < 1) {
+					error = (String)tradeResponse.getData();
 				}
 				
 				if(sellAmount > 0) {
@@ -172,9 +184,15 @@ public class MaAutoTrader {
 					sellOrder.setMode("auto");
 					sellOrder.setSave(true);
 					
-					client.trade(sellOrder);
+					tradeResponse = client.trade(sellOrder);
+					
+					if(tradeResponse != null && tradeResponse.getSuccess() < 1) {
+						error = (String)tradeResponse.getData();
+					}
 					
 				}
+				
+				
 				
 				tradingSession.setLastMaTransactionRate(lastMaLong);
 				
@@ -222,6 +240,8 @@ public class MaAutoTrader {
 				Double buyAmount = buyChunk;
 				System.out.println("Buy amount: "+buyAmount);
 				
+				RequestResponse tradeResponse = null;
+				
 				for(Order reversibleSell : reversibleSells) {
 					
 					Order reversedOrder = reversibleSell.getReversedOrder();
@@ -245,20 +265,24 @@ public class MaAutoTrader {
 						buyAmount = buyAmount - orderAmount;
 						if(reversibleSell.getIsFilled() == true) {
 							System.out.println("FULL SELL/BUY REVERSE ON ("+reversibleSell.getOrderId()+"/"+reversibleSell.getAmount()+"/"+reversibleSell.getRate()+"), buyAmount="+buyAmount);
-							client.reverseTrade(reversibleSell, false);
+							tradeResponse = client.reverseTrade(reversibleSell, false);
 						} else {
 							System.out.println("FILL UP SELL/BUY REVERSE ON ("+reversibleSell.getOrderId()+"/"+reversibleSell.getAmount()+"/"+reversibleSell.getRate()+"), buyAmount="+buyAmount);
-							client.partialReverseTrade(reversibleSell, orderAmount, false);
+							tradeResponse = client.partialReverseTrade(reversibleSell, orderAmount, false);
 						}
 						
 					} else {
 						
 						System.out.println("PARTIAL SELL/BUY REVERSE ON ("+reversibleSell.getOrderId()+"/"+reversibleSell.getAmount()+"/"+reversibleSell.getRate()+"), buyAmount="+buyAmount);
-						client.partialReverseTrade(reversibleSell, buyAmount, false);
+						tradeResponse = client.partialReverseTrade(reversibleSell, buyAmount, false);
 						buyAmount = 0.0;
 						
 					}
 					
+				}
+				
+				if(tradeResponse != null && tradeResponse.getSuccess() < 1) {
+					error = (String)tradeResponse.getData();
 				}
 				
 				if(buyAmount > 0) {
@@ -272,7 +296,11 @@ public class MaAutoTrader {
 					buyOrder.setMode("auto");
 					buyOrder.setSave(true);
 					
-					client.trade(buyOrder);
+					tradeResponse = client.trade(buyOrder);
+					
+					if(tradeResponse != null && tradeResponse.getSuccess() < 1) {
+						error = (String)tradeResponse.getData();
+					}
 					
 				}
 				
@@ -285,6 +313,17 @@ public class MaAutoTrader {
 			
 		}
 		
+		if(error != null) {
+			
+			List<ErrorMessage> autoErrors = new ArrayList<ErrorMessage>();
+			ErrorMessage errorMessage = new ErrorMessage();
+			errorMessage.setMessage(error);
+			autoErrors.add(errorMessage);
+			
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("errors.auto", autoErrors), TradingSession.class);
+			
+		}
 		
 	}
 	

@@ -100,6 +100,7 @@ public class BtceTradingClient extends TradingClient {
 				String errorMessage = tradeResult.getString("error");
 				
 				response.setMessage("Order was unsuccessful: "+errorMessage);
+				response.setData(errorMessage);
 				response.setSuccess(-4);
 				
 			}
@@ -109,6 +110,7 @@ public class BtceTradingClient extends TradingClient {
 			e.printStackTrace();
 			response.setSuccess(-5);
 			response.setMessage(e.getMessage());
+			response.setData(e.getMessage());
 			
 		}
 		

@@ -55,6 +55,7 @@ public class MtgoxTradingClient extends TradingClient {
 				response.setSuccess(1);
 			} else {
 				String error = tradeResult.getString("error");
+				response.setData(error);
 				response.setMessage("Order was unsuccessful: "+error);
 				response.setSuccess(-4);
 			}
@@ -64,6 +65,7 @@ public class MtgoxTradingClient extends TradingClient {
 			e.printStackTrace();
 			response.setSuccess(-5);
 			response.setMessage(e.getMessage());
+			response.setData(e.getMessage());
 			
 		}
 		
