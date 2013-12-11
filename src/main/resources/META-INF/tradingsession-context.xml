@@ -38,7 +38,7 @@
 	
 	
 	<!-- Service -->
-    <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
+    <bean id="tradingSessionProcess" class="com.lenin.tradingplatform.TradingSessionProcess">
     </bean>
     
      
@@ -48,18 +48,18 @@
     <context:annotation-config />
     
     <context:component-scan base-package="com.lenin.tradingplatform" >
- 
-		<context:include-filter type="regex" 
-                       expression="com.lenin.tradingplatform.TradingMain" />
+ 		
+ 		<context:include-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingSessionMain" />
         
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.OrderMain" />
-        
-        <context:exclude-filter type="regex" 
-                       expression="com.lenin.tradingplatform.TradingSessionMain" />
                        
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.UserInfoMain" />
+                       
+		<context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingMain" />
                        
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.RatesMain" />

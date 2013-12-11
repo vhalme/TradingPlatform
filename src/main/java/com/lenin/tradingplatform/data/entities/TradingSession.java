@@ -27,8 +27,10 @@ public class TradingSession implements Serializable {
 	private String currencyRight;
 	
 	private Rate rate;
+	private Rate previousRate;
 	
 	private Double oldRate = 0.0;
+	private Double lastMaTransactionRate = 0.0;
 	
 	private Double fundsLeft = 0.0;
 	private Double fundsRight = 0.0;
@@ -43,6 +45,9 @@ public class TradingSession implements Serializable {
 	private String username;
 	
 	private Boolean deleted = false;
+	
+	private Boolean tradeOk = false;
+	
 	
 	public TradingSession() {
 	}
@@ -96,13 +101,29 @@ public class TradingSession implements Serializable {
 		this.rate = rate;
 	}
 	
-	
+	public Rate getPreviousRate() {
+		return previousRate;
+	}
+
+	public void setPreviousRate(Rate previousRate) {
+		this.previousRate = previousRate;
+	}
+
 	public Double getOldRate() {
 		return oldRate;
 	}
 
 	public void setOldRate(Double oldRate) {
 		this.oldRate = oldRate;
+	}
+
+	
+	public Double getLastMaTransactionRate() {
+		return lastMaTransactionRate;
+	}
+
+	public void setLastMaTransactionRate(Double lastMaTransactionRate) {
+		this.lastMaTransactionRate = lastMaTransactionRate;
 	}
 
 	public Double getFundsLeft() {
@@ -209,6 +230,14 @@ public class TradingSession implements Serializable {
 
 	public void setDeleted(Boolean deleted) {
 		this.deleted = deleted;
+	}
+
+	public Boolean getTradeOk() {
+		return tradeOk;
+	}
+
+	public void setTradeOk(Boolean tradeOk) {
+		this.tradeOk = tradeOk;
 	}
  	
 	

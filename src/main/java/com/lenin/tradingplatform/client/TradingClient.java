@@ -1,62 +1,56 @@
 package com.lenin.tradingplatform.client;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.bson.types.ObjectId;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
-import com.lenin.tradingplatform.TradingProcess;
-import com.lenin.tradingplatform.client.BtceApi;
 import com.lenin.tradingplatform.data.entities.AccountFunds;
 import com.lenin.tradingplatform.data.entities.Order;
+import com.lenin.tradingplatform.data.entities.Rate;
+import com.lenin.tradingplatform.data.entities.Settings;
 import com.lenin.tradingplatform.data.entities.Trade;
 import com.lenin.tradingplatform.data.entities.TradingSession;
 import com.lenin.tradingplatform.data.entities.User;
-import com.lenin.tradingplatform.data.repositories.OrderRepository;
-import com.lenin.tradingplatform.data.repositories.TradeRepository;
-import com.lenin.tradingplatform.data.repositories.TradingSessionRepository;
-import com.lenin.tradingplatform.data.repositories.UserRepository;
 
-public class TradingClient {
+
+public abstract class TradingClient {
 	
 	public static Double orderFee = 0.000;
 	
-	private TradingSession tradingSession;
-	private UserRepository userRepository;
-	private OrderRepository orderRepository;
-	private TradingSessionRepository tradingSessionRepository;
-	private TradeRepository tradeRepository;
-	private TradingProcess tradingProcess;
+	protected TradingSession tradingSession;
+	protected MongoTemplate mongoTemplate;
 	
-	private BtceApi btceApi;
+	protected ExchangeApi exchangeApi;
 	
-	public TradingClient(TradingProcess tradingProcess, TradingSession tradingSession, UserRepository userRepository, TradingSessionRepository tradingSessionRepository, 
-			OrderRepository orderRepository,
-			TradeRepository tradeRepository) {
+	public TradingClient(TradingSession tradingSession,
+			MongoTemplate mongoTemplate) {
 		
-		this.tradingProcess = tradingProcess;
 		this.tradingSession = tradingSession;
-		this.userRepository = userRepository;
-		this.orderRepository = orderRepository;
-		this.tradingSessionRepository = tradingSessionRepository;
-		this.tradeRepository = tradeRepository;
+		this.mongoTemplate = mongoTemplate;
 		
 	}
 	
 	
-	public BtceApi getBtceApi() {
-		return btceApi;
+	public ExchangeApi getExchangeApi() {
+		return exchangeApi;
 	}
 
-	public void setBtceApi(BtceApi btceApi) {
-		this.btceApi = btceApi;
+	public void setExchangeApi(ExchangeApi exchangeApi) {
+		this.exchangeApi = exchangeApi;
 	}
-
 
 	public TradingSession getTradingSession() {
 		return tradingSession;
@@ -67,278 +61,193 @@ public class TradingClient {
 		this.tradingSession = tradingSession;
 	}
 
-
-	public OrderRepository getOrderRepository() {
-		return orderRepository;
+	
+	public MongoTemplate getMongoTemplate() {
+		return mongoTemplate;
 	}
 
 
-	public void setOrderRepository(OrderRepository orderRepository) {
-		this.orderRepository = orderRepository;
+	public void setMongoTemplate(MongoTemplate mongoTemplate) {
+		this.mongoTemplate = mongoTemplate;
 	}
 
-
-	public TradingSessionRepository getTradingSessionRepository() {
-		return tradingSessionRepository;
-	}
-
-
-	public void setTradingSessionRepository(
-			TradingSessionRepository tradingSessionRepository) {
-		this.tradingSessionRepository = tradingSessionRepository;
-	}
-
-
-	public TradeRepository getTradeRepository() {
-		return tradeRepository;
-	}
-
-
-	public void setTradeRepository(TradeRepository tradeRepository) {
-		this.tradeRepository = tradeRepository;
-	}
-
-
-
+	
 	public RequestResponse cancelOrder(Order order) {
 		
-		if(btceApi == null) {
-			System.err.println("BtceApi undefined. Cannot execute cancelOrder command.");
-			return null;
-		}
-		
-		Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+		Double brokerFeeFactor = 1 - exchangeApi.getOrderFee();
 		
 		RequestResponse response = new RequestResponse();
-		
-		if(tradingSession.getLive()) {
 			
-			JSONObject cancelOrderResult = btceApi.cancelOrder(order);
-		
-			if(cancelOrderResult == null) {
-				response.setSuccess(-3);
-				response.setMessage("Could not get order cancellation result.");
+		Integer cancelledOrdersNum = 0;
+		List<Order> reverseOrders = null;
+		JSONObject cancelOrderResult = null;
+			
+		Boolean cancelFailed = false;
+			
+		if(order.getIsReversed()) {
+				
+			Query orderQuery = new Query(Criteria.where("reversedOrder").is(order));
+			reverseOrders = mongoTemplate.find(orderQuery, Order.class);
+			//reverseOrders = orderRepository.findByReversedOrder(order);
+				
+			if(reverseOrders.size() == 0) {
+					
+				mongoTemplate.remove(order);
+				response.setSuccess(1);
 				return response;
-			}
-			
-			try {
 				
-				Integer success = cancelOrderResult.getInt("success");
-				response.setSuccess(success);
-				
-				if(success == 1) {
+			} else {
 					
-					if(order.getIsReversed()) {
+				for(Order reverseOrder : reverseOrders) {
 						
-						Order reverseOrder = orderRepository.findByReversedOrder(order);
-						compensateCancelledOrder(reverseOrder, tradingSession);
+					if(reverseOrder.getIsFilled() == false) {
 							
-						orderRepository.delete(reverseOrder);
-						orderRepository.delete(order);
-					
-					} else {
-						
-						compensateCancelledOrder(order, tradingSession);
-						
-						if(order.getFilledAmount() > 0) {
-							Double fillRatio = order.getFilledAmount()/order.getBrokerAmount();
-							order.setBrokerAmount(order.getFilledAmount());
-							order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
-							order.setAmount(order.getAmount()*fillRatio);
-							orderRepository.save(order);
+						cancelOrderResult = exchangeApi.cancelOrder(reverseOrder);
+							
+						if(cancelOrderResult != null) {
+							compensateCancelledOrder(reverseOrder, tradingSession);
+							mongoTemplate.remove(reverseOrder);
+							cancelledOrdersNum++;
 						} else {
-							orderRepository.delete(order);
+							cancelFailed = true;
 						}
 						
+					} else {
+							
+						mongoTemplate.remove(reverseOrder);
+						
 					}
-					
-					tradingSessionRepository.save(tradingSession);
-					
-					System.out.println("Order cancelled successfully.");
-					
-				} else {
-					
-					System.out.println("Order cancellation request failed: "+success);
-					Iterator<String> keys = cancelOrderResult.keys();
-					
-					while(keys.hasNext()) {
-						String key = keys.next();
-						System.out.println(key+" : "+cancelOrderResult.get(key));
-					}
-					
-					response.setMessage("Cancel order was unsuccessful.");
-					response.setSuccess(-4);
-					
-					
+						
 				}
-				
-			} catch(JSONException e) {
-				
-				e.printStackTrace();
-				response.setSuccess(-5);
-				response.setMessage(e.getMessage());
-				
+					
 			}
+				
+		} else {
+				
+			cancelOrderResult = exchangeApi.cancelOrder(order);
+				
+		}
+			
+		if(cancelFailed) {
+				
+			response.setSuccess(-3);
+			response.setMessage("Could not get order cancellation result.");
+			return response;
 			
 		} else {
-			
-			if(order.getIsReversed()) {
 				
-				Order reverseOrder = orderRepository.findByReversedOrder(order);
-				compensateCancelledOrder(reverseOrder, tradingSession);
+			if((reverseOrders != null && reverseOrders.size() > 0) && cancelledOrdersNum == 0) {
+				
+				mongoTemplate.remove(order);
+				response.setSuccess(1);
+				return response;
 					
-				orderRepository.delete(reverseOrder);
-				orderRepository.delete(order);
-			
-			} else {
-				
-				compensateCancelledOrder(order, tradingSession);
-				
-				if(order.getFilledAmount() > 0) {
-					Double fillRatio = order.getFilledAmount()/order.getBrokerAmount();
-					order.setBrokerAmount(order.getFilledAmount());
-					order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
-					order.setAmount(order.getAmount()*fillRatio);
-					orderRepository.save(order);
-				} else {
-					orderRepository.delete(order);
-				}
-				
 			}
+				
+		}
 			
-			tradingSessionRepository.save(tradingSession);
-			
-			response.setSuccess(1);
-			
+		try {
+				
+			response = processCancellationResult(cancelOrderResult, order);
+				
+			if(response.getSuccess() == 1) {
+					
+				if(reverseOrders != null && reverseOrders.size() > 0) {
+						
+					mongoTemplate.remove(order);
+					
+				} else {
+						
+					compensateCancelledOrder(order, tradingSession);
+						
+					if(order.getFilledAmount() > 0) {
+						Double fillRatio = order.getFilledAmount()/order.getBrokerAmount();
+						order.setBrokerAmount(order.getFilledAmount());
+						order.setFinalAmount(order.getBrokerAmount()*brokerFeeFactor);
+						order.setAmount(order.getAmount()*fillRatio);
+						mongoTemplate.save(order);
+					} else {
+						mongoTemplate.remove(order);
+					}
+						
+				}
+					
+				System.out.println("Order cancelled successfully.");
+					
+			} else {
+					
+				System.out.println("Order cancellation request failed");
+				Iterator<String> keys = cancelOrderResult.keys();
+					
+				while(keys.hasNext()) {
+					String key = keys.next();
+					System.out.println(key+" : "+cancelOrderResult.get(key));
+				}
+					
+				response.setMessage("Cancel order was unsuccessful.");
+				response.setSuccess(-4);
+					
+					
+			}
+				
+		} catch(JSONException e) {
+				
+			e.printStackTrace();
+			response.setSuccess(-5);
+			response.setMessage(e.getMessage());
+				
 		}
 		
 		return response;
 		
 	}
 	
+	
+	protected abstract RequestResponse processCancellationResult(JSONObject cancelOrderResult, Order order);
+	
+	
 	public RequestResponse trade(Order order) {
-		
-		if(btceApi == null) {
-			System.err.println("BtceApi undefined. Cannot execute trade command.");
-			return null;
-		}
 		
 		RequestResponse response = new RequestResponse();
 		
 		order.setTradingSession(tradingSession);
 		order.setLive(tradingSession.getLive());
 		
-		Double serviceFeeFactor = 1-TradingClient.orderFee;
+		Double serviceFeeFactor = 1-MtgoxTradingClient.orderFee;
 		order.setBrokerAmount(order.getAmount()*serviceFeeFactor);
-		
-		if(tradingSession.getLive()) {
 			
-			JSONObject tradeResult = btceApi.trade(order, serviceFeeFactor);
-			
-			if(tradeResult == null) {
-				response.setSuccess(-3);
-				response.setMessage("Could not get trade result.");
-				return response;
-			}
-			
-			
-			try {
+		JSONObject tradeResult = exchangeApi.trade(order, serviceFeeFactor);
 				
-				Integer success = tradeResult.getInt("success");
-				response.setSuccess(success);
-				
-				if(success == 1) {
-					
-					JSONObject resultData = tradeResult.getJSONObject("return");
-					String orderId = resultData.getString("order_id");
-					Double received = resultData.getDouble("received");
-					Double remains = resultData.getDouble("remains");
-					
-					order.setOrderId(orderId);
-					order.setReceived(received);
-					order.setRemains(remains);
-					
-					if(order.getRemains() == 0) {
-						order.setFilledAmount(order.getBrokerAmount());
-					} else if(order.getReceived() > 0) {
-						order.setFilledAmount(order.getReceived());
-					}
-					
-					System.out.println("Trade request posted successfully.");
-					executeOrder(order);
-					
-				} else {
-					
-					BtceApi._nonce = System.currentTimeMillis() / 10000L;
-					
-					System.out.println("Trade request failed: "+success);
-					Iterator<String> keys = tradeResult.keys();
-					
-					while(keys.hasNext()) {
-						String key = keys.next();
-						System.out.println(key+" : "+tradeResult.get(key));
-					}
-					
-					String errorMessage = tradeResult.getString("error");
-					
-					response.setMessage("Order was unsuccessful: "+errorMessage);
-					response.setSuccess(-4);
-					
-				}
-				
-			} catch(JSONException e) {
-				
-				e.printStackTrace();
-				response.setSuccess(-5);
-				response.setMessage(e.getMessage());
-				
-			}
-			
-		} else {
-			
-			Double random = Math.random();
-			String orderId = ""+random;
-			
-			order.setOrderId(orderId);
-			order.setReceived(order.getBrokerAmount()*Math.random());
-			//order.setReceived(order.getBrokerAmount());
-			order.setRemains(order.getBrokerAmount()-order.getReceived());
-			
-			if(order.getRemains() == 0) {
-				order.setFilledAmount(order.getBrokerAmount());
-			} else if(order.getReceived() > 0) {
-				order.setFilledAmount(order.getReceived());
-			}
-			
-			/*
-			Trade trade = new Trade();
-			trade.setLive(false);
-			trade.setOrderId(order.getOrderId());
-			trade.setAmount(order.getReceived());
-			trade.setTime(unixTime);
-			
-			tradeRepository.save(trade);
-			*/
-			
-			executeOrder(order);
-			
-			response.setSuccess(1);
-			
+		if(tradeResult == null) {
+			response.setSuccess(-3);
+			response.setMessage("Could not get trade result.");
+			return response;
 		}
+				
+		response = processTradeResult(tradeResult, order);
 		
 		return response;
 		
 	}
 	
 	
-	private void executeOrder(Order order) {
+	protected abstract RequestResponse processTradeResult(JSONObject tradeResult, Order order);
+	
+	
+	protected void executeOrder(Order order) {
 		
-		Double brokerFeeFactor = 1-btceApi.getOrderFee();
+		
+		Double brokerFeeFactor = 1.0 - 0.002;
+		
+		if(exchangeApi != null) {
+			brokerFeeFactor = 1-exchangeApi.getOrderFee();
+		}
+		
 		Double serviceFeeFactor = 1-TradingClient.orderFee;
 		
-		Double totalFeeFactor = serviceFeeFactor * brokerFeeFactor;
-		
 		order.setFinalAmount(order.getBrokerAmount() * brokerFeeFactor);
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
 		if(order.getType().equals("buy")) {
 			
@@ -348,6 +257,11 @@ public class TradingClient {
 			tradingSession.setFundsLeft(tradingSession.getFundsLeft() - leftCurrencyVal);
 			tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyVal);
 			
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsLeft", tradingSession.getFundsLeft()), TradingSession.class);
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsRight", tradingSession.getFundsRight()), TradingSession.class);
+			
 		} else if(order.getType().equals("sell")) {
 			
 			Double leftCurrencyVal = (order.getFilledAmount() * brokerFeeFactor) * order.getRate();
@@ -356,11 +270,17 @@ public class TradingClient {
 			tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyVal);
 			tradingSession.setFundsRight(tradingSession.getFundsRight() - rightCurrencyVal);
 			
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsLeft", tradingSession.getFundsLeft()), TradingSession.class);
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsRight", tradingSession.getFundsRight()), TradingSession.class);
+			
+			
 		}
 
 
 		Order reversedOrder = order.getReversedOrder();
-		System.out.println("exec tx (reverse="+(reversedOrder != null)+", fill="+order.getFilledAmount()+"/broker="+order.getBrokerAmount()+")");
+		System.out.println("exec tx "+order.getOrderId()+" (reverse="+(reversedOrder != null)+", fill="+order.getFilledAmount()+"/broker="+order.getBrokerAmount()+") @ "+order.getRate());
 		
 		if(reversedOrder != null) {
 			
@@ -368,32 +288,34 @@ public class TradingClient {
 			trade.setAmount(order.getFilledAmount());
 			Double tradeProfit = order.calcProfit(trade, brokerFeeFactor);
 			tradingSession.setProfitLeft(tradingSession.getProfitLeft() + tradeProfit);
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("profitLeft", tradingSession.getProfitLeft()), TradingSession.class);
 			
-			User user = userRepository.findByUsername(tradingSession.getUsername());
+			Query userQuery = new Query(Criteria.where("username").is(tradingSession.getUsername()));
+			List<User> usersResult = mongoTemplate.find(userQuery, User.class);
+			User user = usersResult.get(0);
 			
-			if(tradingProcess != null) {
-				
-				String orderMode = order.getMode();
-				if(orderMode != null && !orderMode.equals("manual") && user.getLive() == true) {
-					tradingProcess.processProfit(user, tradeProfit, "left", tradingSession);
-				}
-				
+			String orderMode = order.getMode();
+			if(orderMode != null && !orderMode.equals("manual") && user.getLive() == true) {
+				TradingClient.processProfit(user, tradeProfit, "left", tradingSession, mongoTemplate);
 			}
 			
 			reversedOrder.setIsReversed(true);
 			reversedOrder.setFilledAmount(order.getFilledAmount());
 			
-			if(!order.getIsFilled()) {
-				orderRepository.save(reversedOrder);
-				orderRepository.save(order);
-			} else {
-				orderRepository.delete(reversedOrder);
-				//orderRepository.delete(order);
-			}
+			System.out.println("order "+order.getOrderId()+" reverts order "+reversedOrder.getOrderId()+" ("+reversedOrder.getAmount()+" @ "+reversedOrder.getRate()+")");
+			
+			//if(!order.getIsFilled()) {
+				mongoTemplate.save(reversedOrder);
+				mongoTemplate.save(order);
+			//} else {
+				//mongoTemplate.remove(reversedOrder);
+				//mongoTemplate.remove(order);
+			//}
 			
 		} else {
 			
-			orderRepository.save(order);
+			mongoTemplate.save(order);
 			
 			/*
 			if(order.getSave()) {
@@ -403,7 +325,7 @@ public class TradingClient {
 			
 		}
 		
-		tradingSessionRepository.save(tradingSession);
+		//tradingSessionRepository.save(tradingSession);
 		
 	}
 	
@@ -426,6 +348,21 @@ public class TradingClient {
 		System.out.println("Reverting order.");
 		
 		Order reverseOrder = createReverseOrder(order);
+		reverseOrder.setSave(save);
+		
+		RequestResponse tradeResult = trade(reverseOrder);
+		
+		return tradeResult;
+		
+	};
+	
+	
+	public RequestResponse partialReverseTrade(Order order, Double amount, Boolean save) {
+		
+		System.out.println("Reverting order partially ("+amount+"/"+order.getAmount()+").");
+		
+		Order reverseOrder = createReverseOrder(order);
+		reverseOrder.setAmount(amount);
 		reverseOrder.setSave(save);
 		
 		RequestResponse tradeResult = trade(reverseOrder);
@@ -458,9 +395,15 @@ public class TradingClient {
 	}
 	
 
-	private void compensateCancelledOrder(Order order, TradingSession tradingSession) {
+	protected void compensateCancelledOrder(Order order, TradingSession tradingSession) {
 		
-		Double brokerFeeFactor = 1 - btceApi.getOrderFee();
+		Double brokerFeeFactor = 1.0 - 0.002;
+		
+		if(exchangeApi != null) {
+			brokerFeeFactor = 1 - exchangeApi.getOrderFee();
+		}
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
 		
 		if(order.getType().equals("buy")) {
 			
@@ -468,16 +411,146 @@ public class TradingClient {
 			Double leftCurrencyReturn = leftReturnUnits * order.getRate();
 			
 			tradingSession.setFundsLeft(tradingSession.getFundsLeft() + leftCurrencyReturn);
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsLeft", tradingSession.getFundsLeft()), TradingSession.class);
+			
 			
 		} else if(order.getType().equals("sell")) {
 			
 			Double rightCurrencyReturn = (order.getBrokerAmount() - order.getFilledAmount()) * brokerFeeFactor;
 			
 			tradingSession.setFundsRight(tradingSession.getFundsRight() + rightCurrencyReturn);
+			mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+					new Update().set("fundsRight", tradingSession.getFundsRight()), TradingSession.class);
 			
 		}
 		
 	}
 	
+	
+	public static void processProfit(User user, Double tradeProfit, String profitSide, TradingSession tradingSession, MongoTemplate mongoTemplate) {
+		
+		Map<String, Rate> rateMap = TradingClient.createRateMap(tradingSession.getService(), mongoTemplate);
+		
+		List<Settings> settingsResult = mongoTemplate.findAll(Settings.class);
+		Settings settings = settingsResult.get(0);
+		
+		Map<String, Map<String, Double>> serviceFees = settings.getServiceFees();
+		Map<String, Double> profitSharingFees = serviceFees.get("profit");
+		Double share = profitSharingFees.get("share");
+		
+		AccountFunds accountFunds = user.getAccountFunds();
+		Map<String, Double> reserves = accountFunds.getReserves();
+		
+		Map<String, Object> paymentSettings = 
+				accountFunds.getServiceProperties().get("payment").getProperties();
+		
+		List<Map<String, Object>> periods = (List<Map<String, Object>>)paymentSettings.get("periods");
+		Map<String, Object> currentPeriod = periods.get(1);
+		
+		String paymentMethod = (String)currentPeriod.get("method");
+		String paymentCurrency = (String)currentPeriod.get("currency");
+		Map<String, String> periodProfits = (Map<String, String>)currentPeriod.get("sharedProfit");
+		
+		Double profitShare = tradeProfit * share;
+		
+		if(paymentMethod.equals("profit")) {
+			
+			String profitCurrency = "";
+			if(profitSide.equals("left")) {
+				profitCurrency = tradingSession.getCurrencyLeft();
+			} else {
+				profitCurrency = tradingSession.getCurrencyRight();
+			}
+			
+			if(!profitCurrency.equals(paymentCurrency)) {
+				
+				String exchangePair = null;
+				Double exchangeFactor = 1.0;
+				
+				if(profitSide.equals("left")) {
+					exchangePair = paymentCurrency+"_"+profitCurrency;
+					Double rate = rateMap.get(exchangePair).getLast();
+					exchangeFactor = 1.0/rate;
+				} else {
+					exchangePair = profitCurrency+"_"+paymentCurrency;
+					Double rate = rateMap.get(exchangePair).getLast();
+					exchangeFactor = rate;
+				}
+				
+				profitShare = profitShare * exchangeFactor;
+				
+			}
+			
+			BigDecimal bdProfitShare = new BigDecimal(""+profitShare);
+			BigDecimal bdExistingProfits = new BigDecimal(periodProfits.get(paymentCurrency));
+			bdExistingProfits = bdExistingProfits.add(bdProfitShare);
+			periodProfits.put(paymentCurrency, bdExistingProfits.toString());
+			mongoTemplate.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+					new Update().set("serviceProperties.paymentSettings.periods.current.sharedProfit."+paymentCurrency, 
+							bdExistingProfits.toString()), AccountFunds.class);
+			
+			Double currentFunds = reserves.get(paymentCurrency);
+			BigDecimal bdCurrentFunds = new BigDecimal(""+currentFunds);
+			
+			bdCurrentFunds = bdCurrentFunds.subtract(new BigDecimal(""+profitShare));
+			reserves.put(paymentCurrency, bdCurrentFunds.doubleValue());
+			mongoTemplate.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+					new Update().set("reserves."+paymentCurrency, 
+							bdCurrentFunds.doubleValue()), AccountFunds.class);
+			
+			Map<String, Double> totalProfits = settings.getTotalProfits();
+			if(totalProfits == null) {
+				totalProfits = new HashMap<String, Double>();
+			}
+			
+			Double totalProfit = totalProfits.get(profitCurrency);
+			if(totalProfit == null) {
+				totalProfit = 0.0;
+			}
+			
+			BigDecimal bdTotalProfit = new BigDecimal(totalProfit);
+			bdTotalProfit = bdTotalProfit.add(new BigDecimal(tradeProfit));
+			totalProfits.put(profitCurrency, bdTotalProfit.doubleValue());
+			
+			settings.setTotalProfits(totalProfits);
+			
+			//mongoTemplate.save(accountFunds);
+			
+			mongoTemplate.updateFirst(new Query(), new Update().set("totalProfits", totalProfits), Settings.class);
+			//mongoTemplate.save(settings);
+			
+			
+		}
+		
+	}
+
+	
+	public static Map<String, Rate> createRateMap(String service, MongoTemplate mongoTemplate) {
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Query searchRates = new Query(Criteria.where("setType").is("15s").andOperator(
+					Criteria.where("service").is(service)
+				)).with(new Sort(Direction.DESC, "time")).limit(10);
+		
+		List<Rate> rates = mongoOps.find(searchRates, Rate.class);
+		
+		Map<String, Rate> rateMap = new HashMap<String, Rate>();
+		for(Rate rate : rates) {
+			rateMap.put(rate.getPair(), rate);
+			System.out.println("Last rate: "+rate.getPair()+"="+rate.getLast()+", "+rate.getMovingAverages().size());
+			if(service.equals("btce")) {
+				if(rateMap.get("ltc_usd") != null && rateMap.get("ltc_btc") != null && rateMap.get("btc_usd") != null) {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
+		
+		return rateMap;
+		
+	}
 	
 }

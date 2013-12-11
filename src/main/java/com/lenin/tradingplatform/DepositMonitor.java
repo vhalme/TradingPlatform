@@ -6,11 +6,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BitcoinApi;
@@ -18,7 +20,6 @@ import com.lenin.tradingplatform.client.BitcoinClient;
 import com.lenin.tradingplatform.client.EmailSender;
 import com.lenin.tradingplatform.client.OkpayClient;
 import com.lenin.tradingplatform.client.OperationResult;
-import com.lenin.tradingplatform.client.TransferClient;
 import com.lenin.tradingplatform.data.entities.AccountFunds;
 import com.lenin.tradingplatform.data.entities.BitcoinTransaction;
 import com.lenin.tradingplatform.data.entities.FundTransaction;
@@ -65,8 +66,6 @@ public class DepositMonitor {
 		
 		Map<String, Long> lastTxTimes = settings.getLastTransactionTimes();
 		
-		
-		TransferClient client = null;
 		
 		if(currency.equals("btc") || currency.equals("ltc")) {
 			
@@ -282,10 +281,11 @@ public class DepositMonitor {
 				if(earliestUnconfirmedTx == null || 
 						(earliestUnconfirmedTx.getBlockHash() != null && !confirmedHash.equals(earliestUnconfirmedTx.getBlockHash())) ||
 						(earliestUnconfirmedTx.getBlockHash() == null && (earliestUnconfirmedTx.getTime()-earliestConfirmedTx.getTime()) > 360)) { 
-			
+					
 					lastBlockHashes.put(currency, earliestConfirmedTx.getBlockHash());
-					settings.setLastBlockHashes(lastBlockHashes);
-					mongoOps.save(settings);
+					//settings.setLastBlockHashes(lastBlockHashes);
+					mongoTemplate.updateFirst(new Query(), new Update().set("lastBlockHashes", lastBlockHashes), Settings.class);
+					//mongoOps.save(settings);
 				
 				}
 				
@@ -329,10 +329,12 @@ public class DepositMonitor {
 			}
 			
 			lastTxTimes.put(currency, maxTime);
-			settings.setLastTransactionTimes(lastTxTimes);
 			
 			mongoOps.insertAll(transactions);
-			mongoOps.save(settings);
+			
+			//settings.setLastTransactionTimes(lastTxTimes);
+			mongoTemplate.updateFirst(new Query(), new Update().set("lastTransactionTimes", lastTxTimes), Settings.class);
+			//mongoOps.save(settings);
 			
 		}
 		
@@ -353,7 +355,12 @@ public class DepositMonitor {
 		Map<String, List<FundTransaction>> txByAccount = new HashMap<String, List<FundTransaction>>();
 		
 		for(FundTransaction transaction : transactions) {
-				
+			
+			String txAccount = transaction.getAccount();
+			if(txAccount == null || txAccount.equals("")) {
+				continue;
+			}
+			
 			List<FundTransaction> accountTransactions = txByAccount.get(transaction.getAccount());
 			if(accountTransactions == null) {
 				accountTransactions = new ArrayList<FundTransaction>();
@@ -392,6 +399,8 @@ public class DepositMonitor {
 				String txState = transaction.getState();
 				
 				String nextState = txState;
+				
+				//System.out.println("CHK0: "+type+"/"+txState);
 				
 				if(type.equals("addToBtce") || type.equals("returnFromBtce")) {
 					
@@ -446,6 +455,8 @@ public class DepositMonitor {
 						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds - txAmount;
 						
 						reserves.put(currency, currencyFunds);
+						mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+								new Update().set("reserves."+currency, currencyFunds), AccountFunds.class);
 						
 						nextState = "readyTransferBtce";
 						
@@ -459,6 +470,8 @@ public class DepositMonitor {
 						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds - txAmount;
 						
 						reserves.put(currency, currencyFunds);
+						mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+								new Update().set("reserves."+currency, currencyFunds), AccountFunds.class);
 						
 						nextState = "readyWithdraw";
 					
@@ -468,6 +481,8 @@ public class DepositMonitor {
 						currencyFunds = bdCurrencyFunds.doubleValue(); //currencyFunds + txAmount;
 						
 						reserves.put(currency, currencyFunds);
+						mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+								new Update().set("reserves."+currency, currencyFunds), AccountFunds.class);
 						
 						nextState = "failedReimbursed";
 					
@@ -497,9 +512,13 @@ public class DepositMonitor {
 				transaction.setState(nextState);
 				mongoOps.save(transaction);
 				
+				mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(accountFunds.getId()))),
+						new Update().set("reserves."+currency, currencyFunds), AccountFunds.class);
+				
 			}
 			
-			mongoOps.save(accountFunds);
+			//accountFunds.setReserves(reserves);
+			//mongoOps.save(accountFunds);
 			
 		}
 		
@@ -646,8 +665,9 @@ public class DepositMonitor {
 				lastTxTimes.put(currency, lastTxTime);
 				settings.setLastTransactionTimes(lastTxTimes);	
 			}
-		
-			mongoOps.save(settings);
+			
+			mongoTemplate.updateFirst(new Query(), new Update().set("lastTransactionTimes", settings.getLastTransactionTimes()), Settings.class);
+			//mongoOps.save(settings);
 			
 		} else if(currency.equals("ltc") || currency.equals("btc")) {
 			
@@ -663,7 +683,9 @@ public class DepositMonitor {
 				settings.setLastBlockHashes(lastBlockHashes);
 			}
 			
-			mongoOps.save(settings);
+			
+			mongoTemplate.updateFirst(new Query(), new Update().set("lastBlockHashes", settings.getLastBlockHashes()), Settings.class);
+			//mongoOps.save(settings);
 			
 		}
 		
@@ -715,8 +737,11 @@ public class DepositMonitor {
 			System.out.println("Sending email to "+user.getEmail()+", Success: "+emailSent);
 			
 			if(emailSent) {
-				user.setVerificationEmailSent(System.currentTimeMillis()/1000L);
-				mongoOps.save(user);
+				Long setTime = System.currentTimeMillis()/1000L;
+				user.setVerificationEmailSent(setTime);
+				mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(user.getId()))),
+						new Update().set("verificationEmailSent", setTime), User.class);
+				//mongoOps.save(user);
 			}
 			
 		}

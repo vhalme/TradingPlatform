@@ -25,10 +25,14 @@ import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import com.lenin.tradingplatform.data.entities.Order;
+import com.lenin.tradingplatform.data.entities.Settings;
 
-public class BtceApi {
+public class BtceApi implements ExchangeApi {
 	
 	public static long _nonce = System.currentTimeMillis() / 10000L;
 	
@@ -36,10 +40,12 @@ public class BtceApi {
 	private String secret;
 	
 	private Double orderFee; // = 0.002;
+	private MongoOperations mongoOps;
 	
-	public BtceApi(String key, String secret) {
+	public BtceApi(String key, String secret, MongoOperations mongoOps) {
 		this.key = key;
 		this.secret = secret;
+		this.mongoOps = mongoOps;
 	}
 	
 	
@@ -161,6 +167,7 @@ public class BtceApi {
 	public JSONObject cancelOrder(Order order) {
 		
 		List<NameValuePair> methodParams = new ArrayList<NameValuePair>();
+		
 		methodParams.add(new BasicNameValuePair("method", "CancelOrder"));
 		methodParams.add(new BasicNameValuePair("order_id", order.getOrderId()));
 		
@@ -186,9 +193,10 @@ public class BtceApi {
 	}
 	
 	
-	public static JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams, String key, String secret) {
+	public JSONObject authenticatedHTTPRequest(List<NameValuePair> methodParams, String key, String secret) {
         
-		Long newNonce = (System.currentTimeMillis() / 1000L) + 100L;
+		/*
+		Long newNonce = (System.currentTimeMillis() / 1000L) + 4000L;
 		
 		
 		if(newNonce <= _nonce) {
@@ -196,23 +204,12 @@ public class BtceApi {
 		}
 		
 		_nonce = newNonce;
+		*/
 		
 		Date now = new Date();
 		
-		// Request parameters and other properties.
-        List<NameValuePair> params = new ArrayList<NameValuePair>(2);
-        params.add(new BasicNameValuePair("nonce", "" + _nonce));
-        
-        String paramsString = "nonce="+_nonce;
-        System.out.println(paramsString);
-    	
-        if(methodParams != null) {
-        	for(NameValuePair nvp : methodParams) {
-        		params.add(nvp);
-        		paramsString += "&"+nvp.getName()+"="+nvp.getValue();
-        	}
-        }
-        
+		
+        String paramsString = "";
         //System.out.println(paramsString);
         
         HttpClient httpclient = new DefaultHttpClient();
@@ -222,8 +219,36 @@ public class BtceApi {
 	    
         HttpPost httppost = new HttpPost("https://btc-e.com/tapi");
         
+        Settings settings = null;
+        
         try {
         	
+        	List<Settings> settingsResult = mongoOps.findAll(Settings.class);
+    		settings = settingsResult.get(0);
+    		Long nonce = settings.getNonce();
+    		
+    		Long nextTimestamp = (System.currentTimeMillis() / 1000L) + 4000L;
+    		
+    		if(nonce < nextTimestamp) {
+    			nonce = nextTimestamp;
+    		}
+    		
+    		_nonce = nonce + 1;
+    		
+        	// Request parameters and other properties.
+            List<NameValuePair> params = new ArrayList<NameValuePair>(2);
+            params.add(new BasicNameValuePair("nonce", "" + _nonce));
+            
+            paramsString = "nonce="+_nonce;
+            System.out.println(paramsString);
+        	
+            if(methodParams != null) {
+            	for(NameValuePair nvp : methodParams) {
+            		params.add(nvp);
+            		paramsString += "&"+nvp.getName()+"="+nvp.getValue();
+            	}
+            }
+            
         	UrlEncodedFormEntity uefe = new UrlEncodedFormEntity(params, "UTF-8");
             httppost.setEntity(uefe);
             
@@ -242,13 +267,13 @@ public class BtceApi {
         String result = "";
         
         try {
-        
+        	
         	//Execute and get the response.
         	HttpResponse response = httpclient.execute(httppost);
         	HttpEntity entity = response.getEntity();
 
         	if(entity != null) {
-        	
+        		
         		InputStream instream = entity.getContent();
         		
         		BufferedReader rd = new BufferedReader(new InputStreamReader(instream));
@@ -276,6 +301,9 @@ public class BtceApi {
         	return null;
         			
         }
+        
+        mongoOps.updateFirst(new Query(), new Update().set("nonce", _nonce), Settings.class);
+        //mongoOps.save(settings);
         
         try {
         	

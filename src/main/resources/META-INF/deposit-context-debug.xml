@@ -38,7 +38,7 @@
 	
 	
 	<!-- Service -->
-    <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
+    <bean id="depositProcess" class="com.lenin.tradingplatform.DepositProcess">
     </bean>
     
      
@@ -51,8 +51,20 @@
  
 		<context:include-filter type="regex" 
                        expression="com.lenin.tradingplatform.DepositMain" />
+        
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.OrderMain" />
+        
+        <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingSessionMain" />
                        
         <context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.UserInfoMain" />
+                       
+		<context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.AveragesMain" />
+                       
+		<context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.RatesMain" />
                        
         <context:exclude-filter type="regex" 

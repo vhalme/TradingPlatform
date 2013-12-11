@@ -38,7 +38,7 @@
 	
 	
 	<!-- Service -->
-    <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
+    <bean id="movingAverageProcess" class="com.lenin.tradingplatform.MovingAverageProcess">
     </bean>
     
      
@@ -48,9 +48,9 @@
     <context:annotation-config />
     
     <context:component-scan base-package="com.lenin.tradingplatform" >
- 
-		<context:include-filter type="regex" 
-                       expression="com.lenin.tradingplatform.TradingMain" />
+ 		
+ 		<context:include-filter type="regex" 
+                       expression="com.lenin.tradingplatform.AveragesMain" />
         
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.OrderMain" />
@@ -61,14 +61,14 @@
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.UserInfoMain" />
                        
-        <context:exclude-filter type="regex" 
+		<context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.RatesMain" />
                        
         <context:exclude-filter type="regex" 
-                       expression="com.lenin.tradingplatform.AveragesMain" />
+                       expression="com.lenin.tradingplatform.DepositMain" />
                        
         <context:exclude-filter type="regex" 
-                       expression="com.lenin.tradingplatform.DepositMain" />
+                       expression="com.lenin.tradingplatform.TradingMain" />
  
 	</context:component-scan>
     

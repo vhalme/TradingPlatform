@@ -3,6 +3,15 @@ package com.lenin.tradingplatform;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bson.types.ObjectId;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+
 import com.lenin.tradingplatform.client.BtceApi;
 import com.lenin.tradingplatform.client.TradingClient;
 import com.lenin.tradingplatform.data.entities.AutoTradingOptions;
@@ -16,8 +25,7 @@ public class AutoTrader {
 	private TradingClient client;
 	private TradingSession tradingSession;
 	
-	private OrderRepository orderRepository;
-	private TradingSessionRepository tradingSessionRepository;
+	private MongoTemplate mongoTemplate;
 	
 	public AutoTrader(TradingClient client) {
 		
@@ -25,8 +33,7 @@ public class AutoTrader {
 		
 		tradingSession = client.getTradingSession();
 		
-		orderRepository = client.getOrderRepository();
-		tradingSessionRepository = client.getTradingSessionRepository();
+		mongoTemplate = client.getMongoTemplate();
 		
 	}
 	
@@ -34,6 +41,14 @@ public class AutoTrader {
 	public void autoTrade(Boolean newTrades) {
 		
 		AutoTradingOptions options = tradingSession.getAutoTradingOptions();
+		
+		MongoOperations mongoOps = (MongoOperations)mongoTemplate;
+		
+		Boolean manualSettings = options.getManualSettings();
+		if(manualSettings == false) {
+			setTradeDuration(options.getAutoDuration());
+			setTradeFrequency(options.getAutoFrequency());
+		}
 		
 		Double highestSell = highestSell();
 		if(highestSell == null) {
@@ -92,8 +107,11 @@ public class AutoTrader {
 					client.trade(sellOrder);
 					
 					tradingSession.setOldRate(tradingSession.getRate().getLast());
-				
-					tradingSessionRepository.save(tradingSession);
+					
+					mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+							new Update().set("oldRate", tradingSession.getOldRate()), TradingSession.class);
+					
+					//tradingSessionRepository.save(tradingSession);
 				
 				}
 			
@@ -113,8 +131,11 @@ public class AutoTrader {
 				
 					client.trade(buyOrder);
 					tradingSession.setOldRate(tradingSession.getRate().getLast());
-				
-					tradingSessionRepository.save(tradingSession);
+					
+					mongoOps.updateFirst(new Query(Criteria.where("_id").is(new ObjectId(tradingSession.getId()))),
+							new Update().set("oldRate", tradingSession.getOldRate()), TradingSession.class);
+					
+					//tradingSessionRepository.save(tradingSession);
 				
 				}
 				
@@ -126,12 +147,115 @@ public class AutoTrader {
 	
 	
 	
-
+	private void setTradeFrequency(Double value) {
+		
+		AutoTradingOptions options = tradingSession.getAutoTradingOptions();
+		Double autoDuration = options.getAutoDuration();
+		Double autoFrequency = options.getAutoFrequency();
+		Boolean manualSettings = options.getManualSettings();
+		
+		if(value > 80) {
+			if(autoDuration < 20) {
+				value = 80 + (-0.05+(Math.random()*0.1));
+			}
+		}
+		
+		if(value < 20) {
+			if(autoDuration > 80) {
+				value = 20 + (-0.05+(Math.random()*0.1));
+			}
+		}
+		
+		Double threshold = 10-((value/100)*9);
+		if((""+threshold).length() > 5) {
+			threshold = new Double((threshold+"").substring(0, 5));
+		}
+		
+		options.setAutoFrequency(value);
+		
+		if(manualSettings == false) {
+			
+			options.setBuyThreshold(threshold);
+			options.setSellThreshold(threshold);
+			
+		}
+		
+	}
+	
+	private void setTradeDuration(Double value) {
+		
+		AutoTradingOptions options = tradingSession.getAutoTradingOptions();
+		Double autoDuration = options.getAutoDuration();
+		Double autoFrequency = options.getAutoFrequency();
+		Boolean manualSettings = options.getManualSettings();
+		Double fundsLeft = tradingSession.getFundsLeft();
+		Double fundsRight = tradingSession.getFundsRight();
+		Double sellThreshold = options.getSellThreshold();
+		Double buyThreshold = options.getBuyThreshold();
+		
+		if(fundsLeft <= 0 || fundsRight <= 0) {
+			return;
+		}
+		
+		if(value > 80) {
+			if(autoFrequency < 20) {
+				setTradeFrequency(20.0);
+			}
+		}
+		
+		if(value < 20) {
+			if(autoFrequency > 80) {
+				setTradeFrequency(80.0);
+			}
+		}
+		
+		Double leftTotal = fundsLeft;
+		Double rightTotal = fundsRight * tradingSession.getRate().getBuy();
+		Double total = leftTotal + rightTotal;
+		Double leftPart = leftTotal/total;
+		Double rightPart = rightTotal/total;
+		
+		Double valueLeft = 10+(leftPart * value);
+		Double valueRight = 10+(rightPart * value);
+		
+		Double sellCount = valueRight/sellThreshold;
+		if(sellCount < 1) {
+			sellCount = 1.0;
+		}
+		
+		Double buyCount = valueLeft/buyThreshold;
+		if(buyCount < 1) {
+			buyCount = 1.0;
+		}
+		
+		Double maxCount = buyCount > sellCount ? buyCount : sellCount;
+		Double stepCount = (sellCount + buyCount)/2;
+		
+		Double sellChunk = fundsRight / stepCount;
+		Double buyChunk = fundsLeft / (stepCount * tradingSession.getRate().getBuy());
+		
+		options.setAutoDuration(value);
+		
+		if(manualSettings == false) {
+			
+			options.setBuyChunk(buyChunk);
+			options.setSellChunk(sellChunk);
+		
+		}
+		
+	};
 
 	
 	public Double lowestBuy() {
 		
-		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
+		Query orderQuery = new Query(Criteria.where("tradingSession").is(tradingSession).andOperator(
+				Criteria.where("type").is("buy"),
+				Criteria.where("mode").is("auto")
+			));
+		
+		List<Order> orders = mongoTemplate.find(orderQuery, Order.class);
+		
+		//List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
 		
 		Double lowest = null;
 		
@@ -160,7 +284,14 @@ public class AutoTrader {
 	
 	public Double highestSell() {
 		
-		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
+		Query orderQuery = new Query(Criteria.where("tradingSession").is(tradingSession).andOperator(
+				Criteria.where("type").is("sell"),
+				Criteria.where("mode").is("auto")
+			));
+		
+		List<Order> orders = mongoTemplate.find(orderQuery, Order.class);
+		
+		//List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
 		
 		Double highest = null;
 		
@@ -188,7 +319,13 @@ public class AutoTrader {
 	
 	private List<Order> getReversibleSells() {
    		
-		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
+		Query orderQuery = new Query(Criteria.where("tradingSession").is(tradingSession).andOperator(
+				Criteria.where("type").is("sell"),
+				Criteria.where("mode").is("auto")
+			));
+		
+		List<Order> orders = mongoTemplate.find(orderQuery, Order.class);
+		//List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "sell", "auto");
 		System.out.println(orders);
 		
 		Double calculatedBuyAmount = 0.0;
@@ -232,7 +369,13 @@ public class AutoTrader {
 	
 	private List<Order> getReversibleBuys() {
    		
-		List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
+		Query orderQuery = new Query(Criteria.where("tradingSession").is(tradingSession).andOperator(
+				Criteria.where("type").is("buy"),
+				Criteria.where("mode").is("auto")
+			));
+		
+		List<Order> orders = mongoTemplate.find(orderQuery, Order.class);
+		//List<Order> orders = orderRepository.findByTradingSessionAndTypeAndMode(tradingSession, "buy", "auto");
 		System.out.println(orders);
 		
 		Double calculatedSellAmount = 0.0;

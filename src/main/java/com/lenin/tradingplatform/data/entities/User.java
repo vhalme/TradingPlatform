@@ -32,6 +32,10 @@ public class User implements Serializable {
 	private Boolean emailVerified = false;
 	private Long verificationEmailSent = 0L;
 	
+	private Map<String, Double> realFunds = new HashMap<String, Double>();
+	
+	private Boolean loggedIn = false;
+			
 	@DBRef
 	private List<TradingSession> tradingSessions = new ArrayList<TradingSession>();
 	
@@ -44,6 +48,11 @@ public class User implements Serializable {
 	private Long lastBtceTradeTime = 0L;
 	
 	private List<ErrorMessage> errors = new ArrayList<ErrorMessage>();
+	private Map<String, List<ErrorMessage>> sessionErrors = new HashMap<String, List<ErrorMessage>>();
+	
+	private Map<String, Boolean> tradeOk = new HashMap<String, Boolean>();
+	
+	private Map<String, Double> exchangeFees = new HashMap<String, Double>();
 	
 	
 	public User() {
@@ -207,6 +216,48 @@ public class User implements Serializable {
 
 	public void setErrors(List<ErrorMessage> errors) {
 		this.errors = errors;
+	}
+
+	
+	public Map<String, List<ErrorMessage>> getSessionErrors() {
+		return sessionErrors;
+	}
+
+	public void setSessionErrors(Map<String, List<ErrorMessage>> sessionErrors) {
+		this.sessionErrors = sessionErrors;
+	}
+
+
+	public Map<String, Double> getRealFunds() {
+		return realFunds;
+	}
+
+	public void setRealFunds(Map<String, Double> realFunds) {
+		this.realFunds = realFunds;
+	}
+
+	public Map<String, Boolean> getTradeOk() {
+		return tradeOk;
+	}
+
+	public void setTradeOk(Map<String, Boolean> tradeOk) {
+		this.tradeOk = tradeOk;
+	}
+
+	public Boolean getLoggedIn() {
+		return loggedIn;
+	}
+
+	public void setLoggedIn(Boolean loggedIn) {
+		this.loggedIn = loggedIn;
+	}
+
+	public Map<String, Double> getExchangeFees() {
+		return exchangeFees;
+	}
+	
+	public void setExchangeFees(Map<String, Double> exchangeFees) {
+		this.exchangeFees = exchangeFees;
 	}
 
 	

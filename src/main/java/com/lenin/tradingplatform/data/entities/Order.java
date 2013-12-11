@@ -35,6 +35,7 @@ public class Order extends BtceApiCall implements Serializable {
 	private String pair;
 	private String type;
 	private String mode;
+	private String status;
 	
 	private String orderId;
 	private Double received = 0.0;
@@ -43,6 +44,9 @@ public class Order extends BtceApiCall implements Serializable {
 	
 	private Double feeFraction;
 	private Double feeAmount;
+	
+	private String service;
+	
 	
 	public Order() {
 		
@@ -249,6 +253,16 @@ public class Order extends BtceApiCall implements Serializable {
 		this.feeAmount = feeAmount;
 	}
 
+	
+	public String getStatus() {
+		return status;
+	}
+
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
+
 
 	public Double calcProfit(Trade trade, Double brokerFeeFactor) {
 		
@@ -258,7 +272,7 @@ public class Order extends BtceApiCall implements Serializable {
 			
 			Double totalTradeAmount = trade.getAmount() * brokerFeeFactor;
 			
-			Double tradeAmountRatio = trade.getAmount() / brokerAmount;
+			Double tradeAmountRatio = trade.getAmount() / reversedOrder.getBrokerAmount();
 			Double bruttoAmountEquivalent = reversedOrder.getAmount() * tradeAmountRatio;
 			
 			Double feeDeduction = (bruttoAmountEquivalent-totalTradeAmount) * rate;
@@ -329,5 +343,17 @@ public class Order extends BtceApiCall implements Serializable {
 		return isFilled;
 		
 	}
+
+
+	public String getService() {
+		return service;
+	}
+
+
+	public void setService(String service) {
+		this.service = service;
+	}
+	
+	
 
 }

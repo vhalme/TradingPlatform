@@ -10,6 +10,10 @@ public interface TradeRepository extends MongoRepository<Trade, String> {
 	
 	List<Trade> findByOrderId(String orderId);
 	
+	List<Trade> findByOrderIdAndRateAndAmountAndTime(String orderId, Double rate, Double amount, Long time);
+	
+	Trade findByTradeId(String tradeId);
+	
 	List<Trade> findAll();
 	
 	Trade save(Trade trade);

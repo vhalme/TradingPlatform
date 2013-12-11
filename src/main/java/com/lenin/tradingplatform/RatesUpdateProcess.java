@@ -1,24 +1,21 @@
 package com.lenin.tradingplatform;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.codehaus.jettison.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Direction;
-import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import com.lenin.tradingplatform.client.BtceApi;
+import com.lenin.tradingplatform.client.MtgoxApi;
 import com.lenin.tradingplatform.data.entities.Rate;
 import com.lenin.tradingplatform.data.repositories.OrderRepository;
 import com.lenin.tradingplatform.data.repositories.RateRepository;
@@ -29,16 +26,9 @@ import com.lenin.tradingplatform.data.repositories.UserRepository;
 @Service
 public class RatesUpdateProcess {
 	
-	Map<String, Rate> rateMap = new HashMap<String, Rate>();
+	private Map<String, Long> rateUpdateCounters = new HashMap<String, Long>();
 	
-	private Long rateUpdateCounter = 0L;
-	
-	private Long lastRateUpdateTime = 0L;
-	private Long lastRateUpdateTime1min = 0L;
-	private Long lastRateUpdateTime10min = 0L;
-	private Long lastRateUpdateTime30min = 0L;
-	private Long lastRateUpdateTime4h = 0L;
-	private Long lastRateUpdateTime6h = 0L;
+	private Map<String, Long> lastRateUpdateTimes = new HashMap<String, Long>();
 	
 	
 	@Autowired
@@ -92,90 +82,137 @@ public class RatesUpdateProcess {
 	}
 	
 	
-	
-	private void updateRates() throws Exception {
-			
-		Rate rateLtcUsd = getRate("ltc_usd");
-		Rate rateBtcUsd = getRate("btc_usd");
-		Rate rateLtcBtc = getRate("ltc_btc");
+	private void updateRates() {
 		
-		List<Rate> rates = new ArrayList<Rate>();
-		rates.add(rateLtcUsd);
-		rates.add(rateBtcUsd);
-		rates.add(rateLtcBtc);
-		rateRepository.save(rates);
+		List<String> btcePairs = new ArrayList<String>();
+		btcePairs.add("ltc_usd");
+		btcePairs.add("ltc_btc");
+		btcePairs.add("btc_usd");
 		
-		lastRateUpdateTime = rateLtcUsd.getTime();
+		List<String> mtgoxPairs = new ArrayList<String>();
+		mtgoxPairs.add("btc_usd");
 		
-		if(lastRateUpdateTime1min == 0) {
-			lastRateUpdateTime1min = lastRateUpdateTime;
-			lastRateUpdateTime10min = lastRateUpdateTime;
-			lastRateUpdateTime30min = lastRateUpdateTime;
-			lastRateUpdateTime4h = lastRateUpdateTime;
-			lastRateUpdateTime6h = lastRateUpdateTime;
+		List<Rate> btceRates = getRates("btce", btcePairs);
+		List<Rate> mtgoxRates = getRates("mtgox", mtgoxPairs);
+		
+		if(btceRates != null && btceRates.size() > 0) {
+			rateRepository.save(btceRates);
+			Long lastRateUpdateTime = btceRates.get(btceRates.size()-1).getTime();
+			lastRateUpdateTimes.put("btce", lastRateUpdateTime);
+			generateAverages("btce", btcePairs);
 		}
 		
-		rateMap = new HashMap<String, Rate>();
-		rateMap.put("ltc_usd", rateLtcUsd);
-		rateMap.put("btc_usd", rateBtcUsd);
-		rateMap.put("ltc_btc", rateLtcBtc);
+		if(mtgoxRates != null && mtgoxRates.size() > 0) {
+			rateRepository.save(mtgoxRates);
+			Long lastRateUpdateTime = mtgoxRates.get(mtgoxRates.size()-1).getTime();
+			lastRateUpdateTimes.put("mtgox", lastRateUpdateTime);
+			generateAverages("mtgox", mtgoxPairs);
+		}
 		
+		
+	}
+	
+	
+	private void generateAverages(String service, List<String> pairs) {
+		
+		if(lastRateUpdateTimes.get(service+"1min") == null) {
+			lastRateUpdateTimes.put(service+"1min", lastRateUpdateTimes.get(service));
+			lastRateUpdateTimes.put(service+"10min", lastRateUpdateTimes.get(service));
+			lastRateUpdateTimes.put(service+"30min", lastRateUpdateTimes.get(service));
+			lastRateUpdateTimes.put(service+"4h", lastRateUpdateTimes.get(service));
+			lastRateUpdateTimes.put(service+"6h", lastRateUpdateTimes.get(service));
+		}
+		
+		if(rateUpdateCounters.get(service) == null) {
+			rateUpdateCounters.put(service, 0L);
+		}
+		
+		Long rateUpdateCounter = rateUpdateCounters.get(service);
 		
 		if(rateUpdateCounter > 0) {
 		
 			if(rateUpdateCounter % 4 == 0) {
-				createAverageRates("1min");
-				lastRateUpdateTime1min = lastRateUpdateTime;
+				createAverageRates(service, pairs, "1min");
+				lastRateUpdateTimes.put(service+"1min", lastRateUpdateTimes.get(service));
 			}
 		
 			if(rateUpdateCounter % 40 == 0) {
-				createAverageRates("10min");
-				lastRateUpdateTime10min = lastRateUpdateTime;
+				createAverageRates(service, pairs, "10min");
+				lastRateUpdateTimes.put(service+"10min", lastRateUpdateTimes.get(service));
 			}
 		
 			if(rateUpdateCounter % 120 == 0) {
-				createAverageRates("30min");
-				lastRateUpdateTime30min = lastRateUpdateTime;
+				createAverageRates(service, pairs, "30min");
+				lastRateUpdateTimes.put(service+"30min", lastRateUpdateTimes.get(service));
 			}
 		
 			if(rateUpdateCounter % 960 == 0) {
-				createAverageRates("4h");
-				lastRateUpdateTime4h = lastRateUpdateTime;
+				createAverageRates(service, pairs, "4h");
+				lastRateUpdateTimes.put(service+"4h", lastRateUpdateTimes.get(service));
 			}
 		
 			if(rateUpdateCounter % 1440 == 0) {
-				createAverageRates("6h");
-				lastRateUpdateTime6h = lastRateUpdateTime;
-				rateUpdateCounter = 0L;
+				createAverageRates(service, pairs, "6h");
+				lastRateUpdateTimes.put(service+"6h", lastRateUpdateTimes.get(service));
+				rateUpdateCounters.put(service, 0L);
 			}
 			
 		}
 		
-		rateUpdateCounter++;
+		rateUpdateCounter = rateUpdateCounter + 1;
+		rateUpdateCounters.put(service, rateUpdateCounter);
+		
+		
+	}
+	
+	private List<Rate> getRates(String service, List<String> pairs) {
+		
+		List<Rate> rates = new ArrayList<Rate>();
+		
+		for(String pair : pairs) {
+			
+			Rate rate = getRate(service, pair);
+			
+			if(rate == null) {
+				
+				System.out.println("Couldn't create a "+pair+"@"+service+" rate");
+				return null;
+				
+			} else {
+				
+				rates.add(rate);
+				
+			}
+			
+		}
+		
+		
+		return rates;
 		
 		
 	}
 	
 	
-	private void createAverageRates(String setType) {
-		
-		Rate avgLtcUsd = getAverageRate("ltc_usd", setType);
-		Rate avgBtcUsd = getAverageRate("btc_usd", setType);
-		Rate avgLtcBtc = getAverageRate("ltc_btc", setType);
+	private void createAverageRates(String service, List<String> pairs, String setType) {
 		
 		List<Rate> avgRates = new ArrayList<Rate>();
-		avgRates.add(avgLtcUsd);
-		avgRates.add(avgBtcUsd);
-		avgRates.add(avgLtcBtc);
+		for(String pair : pairs) {
+			Rate avgRate = getAverageRate(service, pair, setType);
+			if(avgRate != null) {
+				avgRates.add(avgRate);
+			}
+		}
 		
-		rateRepository.save(avgRates);
+		if(avgRates.size() > 0) {
+			rateRepository.save(avgRates);
+		}
 		
 	}
 	
 	
-	private Rate getAverageRate(String pair, String setType) {
+	private Rate getAverageRate(String service, String pair, String setType) {
 		
-		Long until = lastRateUpdateTime;
+		Long until = lastRateUpdateTimes.get(service);
 		
 		Long period = 0L;
 		
@@ -191,20 +228,29 @@ public class RatesUpdateProcess {
 			period = 21600L;
 		}
 		
-		Long from = lastRateUpdateTime1min - 1;
+		Long from = lastRateUpdateTimes.get(service+"1min") - 1;
 		
 		if(setType.equals("10min")) {
-			from = lastRateUpdateTime10min - 1;
+			from = lastRateUpdateTimes.get(service+"10min") - 1;
 		} else if(setType.equals("30min")) {
-			from = lastRateUpdateTime30min - 1;
+			from = lastRateUpdateTimes.get(service+"30min") - 1;
 		} else if(setType.equals("4h")) {
-			from = lastRateUpdateTime4h - 1;
+			from = lastRateUpdateTimes.get(service+"4h") - 1;
 		} else if(setType.equals("6h")) {
-			from = lastRateUpdateTime6h - 1;
+			from = lastRateUpdateTimes.get(service+"6h") - 1;
 		}
 		
+		Query query = new Query(Criteria.where("pair").is(pair).andOperator(
+				Criteria.where("service").is(service),
+				Criteria.where("setType").is("15s"),
+				Criteria.where("time").gt(from),
+				Criteria.where("time").lte(until)
+			)).with(new Sort(Sort.Direction.ASC, "time"));
+		
+		List<Rate> rates = mongoTemplate.find(query, Rate.class);
+		
 		//List<Rate> rates = rateRepository.findByPairAndTimeGreaterThanOrderByTimeAsc(pair, lastRateUpdateTime - period);
-		List<Rate> rates = rateRepository.findByPairAndSetTypeAndTimeBetweenOrderByTimeAsc(pair, "15s", from, until);
+		//List<Rate> rates = rateRepository.findByPairAndSetTypeAndTimeBetweenOrderByTimeAsc(pair, "15s", from, until);
 		
 		Integer count = 0;
 		Double totalLast = 0.0;
@@ -253,7 +299,7 @@ public class RatesUpdateProcess {
 		Rate avgRate = new Rate();
 		avgRate.setSetType(setType);
 		avgRate.setPair(pair);
-		avgRate.setTime(lastRateUpdateTime);
+		avgRate.setTime(lastRateUpdateTimes.get(service));
 		
 		avgRate.setLast(avgLast);
 		avgRate.setBuy(avgBuy);
@@ -262,6 +308,7 @@ public class RatesUpdateProcess {
 		avgRate.setClose(close);
 		avgRate.setHigh(high);
 		avgRate.setLow(low);
+		avgRate.setService(service);
 		
 		avgRate.setMovingAverages(last.getMovingAverages());
 		
@@ -270,36 +317,72 @@ public class RatesUpdateProcess {
 	}
 	
 	
-	private Rate getRate(String pair) {
+	private Rate getRate(String service, String pair) {
 		
 		try {
 			
-			BtceApi btceApi = new BtceApi("", "");
-			btceApi.setOrderFee(0.002);
+			System.out.println("getting rate "+pair);
 			
-			Rate rate = new Rate();
+			if(service.equals("btce")) {
+			
+				BtceApi btceApi = new BtceApi("", "", null);
+				btceApi.setOrderFee(0.002);
+			
+				Rate rate = new Rate();
 		
-			JSONObject ratesResult = btceApi.getRates(pair);
-			JSONObject rateJson = ratesResult.getJSONObject("ticker");
+				JSONObject ratesResult = btceApi.getRates(pair);
+				JSONObject rateJson = ratesResult.getJSONObject("ticker");
 			
-			rate.setSetType("15s");
-			rate.setPair(pair);
-			rate.setLast(rateJson.getDouble("last"));
-			rate.setBuy(rateJson.getDouble("buy"));
-			rate.setSell(rateJson.getDouble("sell"));
-			rate.setHigh(rateJson.getDouble("high"));
-			rate.setLow(rateJson.getDouble("low"));
-			rate.setAverage(rateJson.getDouble("avg"));
-			rate.setOpen(rate.getLast());
-			rate.setClose(rate.getLast());
-			rate.setVolume(rateJson.getDouble("vol"));
-			rate.setCurrentVolume(rateJson.getDouble("vol_cur"));
-			rate.setTime(rateJson.getLong("server_time"));
-			rate.setService("btce");
+				rate.setSetType("15s");
+				rate.setPair(pair);
+				rate.setLast(rateJson.getDouble("last"));
+				rate.setBuy(rateJson.getDouble("buy"));
+				rate.setSell(rateJson.getDouble("sell"));
+				rate.setHigh(rateJson.getDouble("high"));
+				rate.setLow(rateJson.getDouble("low"));
+				rate.setAverage(rateJson.getDouble("avg"));
+				rate.setOpen(rate.getLast());
+				rate.setClose(rate.getLast());
+				rate.setVolume(rateJson.getDouble("vol"));
+				rate.setCurrentVolume(rateJson.getDouble("vol_cur"));
+				rate.setTime(rateJson.getLong("server_time"));
+				rate.setService("btce");
 			
-			setMovingAverages(rate);
-			
-			return rate;
+				return rate;
+				
+			} else {
+				
+				System.out.println("create mtgox api");
+				MtgoxApi mtgoxApi = new MtgoxApi("", "", null);
+				
+				System.out.println("getting rates from api");
+				JSONObject ratesResult = mtgoxApi.getRates(pair);
+				System.out.println("parsing json");
+				JSONObject rateJson = ratesResult.getJSONObject("return");
+				System.out.println("json parsed");
+				
+				Rate rate = new Rate();
+				
+				rate.setSetType("15s");
+				rate.setPair(pair);
+				rate.setLast(rateJson.getJSONObject("last").getDouble("value"));
+				rate.setBuy(rateJson.getJSONObject("buy").getDouble("value"));
+				rate.setSell(rateJson.getJSONObject("sell").getDouble("value"));
+				rate.setHigh(rateJson.getJSONObject("high").getDouble("value"));
+				rate.setLow(rateJson.getJSONObject("low").getDouble("value"));
+				rate.setAverage(rateJson.getJSONObject("avg").getDouble("value"));
+				rate.setOpen(rate.getLast());
+				rate.setClose(rate.getLast());
+				rate.setVolume(rateJson.getJSONObject("vol").getDouble("value"));
+				rate.setCurrentVolume(rate.getVolume());
+				rate.setTime(rateJson.getLong("now")/1000000);
+				rate.setService("mtgox");
+					
+				System.out.println("got mtgox rate: "+rate.getSell()+"/"+rate.getBuy()+"/"+rate.getOpen()+"/"+rate.getClose()+"/"+rate.getLast());
+				
+				return rate;
+				
+			}
 			
 		} catch(Exception e) {
 			
@@ -310,159 +393,5 @@ public class RatesUpdateProcess {
     	
 	}
 	
-	
-	private void setMovingAverages(Rate lastRate) {
-		
-		Long until = lastRate.getTime();
-		Long from = until - (24*60*60);
-		
-		List<Rate> rates = rateRepository.findByPairAndSetTypeAndTimeBetweenOrderByTimeAsc(lastRate.getPair(), "15s", from, until);
-		
-		Map<String, Double> movingAverages = lastRate.getMovingAverages();
-		
-		Map<String, Long> fromTimes = new HashMap<String, Long>();
-		fromTimes.put("1d", from);
-		fromTimes.put("12h", until - (12*60*60));
-		fromTimes.put("6h", until - (6*60*60));
-		fromTimes.put("4h", until - (4*60*60));
-		fromTimes.put("2h", until - (2*60*60));
-		fromTimes.put("1h", until - (1*60*60));
-		fromTimes.put("30min", until - (30*60));
-		fromTimes.put("10min", until - (10*60));
-		
-		Set<String> timeKeys = fromTimes.keySet();
-		
-		Map<String, Integer> fromCounts = new HashMap<String, Integer>();
-		
-		for(Rate rate : rates) {
-			
-			for(String period : timeKeys) {
-				addRateToCounts(rate, fromTimes, fromCounts, period);
-			}
-					
-		}
-
-		Map<String, Double> fromTotals = new HashMap<String, Double>();
-		
-		Map<String, Double> emaUpperSums = new HashMap<String, Double>();
-		Map<String, Double> emaLowerSums = new HashMap<String, Double>();
-		Map<String, Integer> emaIndexes = new HashMap<String, Integer>();
-		
-
-		for(Rate rate : rates) {
-			
-			for(String period : timeKeys) {
-				addRateToSma(rate, fromTimes, fromTotals, fromCounts, period);
-				addRateToEma(rate, fromTimes, emaUpperSums, emaLowerSums, emaIndexes, fromCounts.get(period), period);
-			}
-					
-		}
-		
-		for(String period : timeKeys) {
-			
-			Double total = fromTotals.get(period);
-			Integer count = fromCounts.get(period);
-			
-			if(total == null || count == null) {
-				continue;
-			}
-			
-			Double sma = total / count;
-			
-			Double emaUpperSum = emaUpperSums.get(period);
-			Double emaLowerSum = emaLowerSums.get(period);
-			Double ema = emaUpperSum / emaLowerSum;
-			
-			movingAverages.put("sma"+period, sma);
-			movingAverages.put("ema"+period, ema);
-			
-			lastRate.setMovingAverages(movingAverages);
-			
-			System.out.println("SMA "+period+" = "+sma);
-			System.out.println("EMA "+period+" = "+ema);
-			
-		}
-		
-		
-	}
-	
-	
-	private void addRateToCounts(Rate rate, Map<String, Long> fromTimes, Map<String, Integer> fromCounts, String period) {
-		
-		if(rate.getTime() >= fromTimes.get(period)) {
-		
-			Integer count = fromCounts.get(period);
-			if(count == null) {
-				count = 0;
-			}
-		
-			count = count + 1;
-		
-			fromCounts.put(period, count);
-		
-		}
-		
-	}
-	
-	private void addRateToSma(Rate rate, Map<String, Long> fromTimes, Map<String, Double> fromTotals, Map<String, Integer> fromCounts, String period) {
-		
-		if(rate.getTime() >= fromTimes.get(period)) {
-		
-			Double total = fromTotals.get(period);
-			if(total == null) {
-				total = 0.0;
-			}
-		
-			BigDecimal bdTotal = new BigDecimal(total);
-			bdTotal = bdTotal.add(new BigDecimal(rate.getLast()));
-			total = bdTotal.doubleValue();
-		
-			fromTotals.put(period, total);
-		
-		}
-	
-	}
-	
-	
-	private void addRateToEma(Rate rate, Map<String, Long> fromTimes, Map<String, Double> emaUpperSums, Map<String, Double> emaLowerSums, Map<String, Integer> emaIndexes, Integer count, String period) {
-		
-		if(rate.getTime() >= fromTimes.get(period)) {
-			
-			Double alpha = 2.0/(count.doubleValue()+1.0);
-			
-			Integer index = emaIndexes.get(period);
-			if(index == null) {
-				index = 0;
-			}
-			
-			Double upperSum = emaUpperSums.get(period);
-			if(upperSum == null) {
-				upperSum = 0.0;
-			}
-			
-			Double upperSumIncr = rate.getLast()*Math.pow(1-alpha, (count-index));
-			BigDecimal bdUpperSum = new BigDecimal(upperSum);
-			bdUpperSum = bdUpperSum.add(new BigDecimal(upperSumIncr));
-			upperSum = bdUpperSum.doubleValue();
-		
-			emaUpperSums.put(period, upperSum);
-		
-			Double lowerSum = emaLowerSums.get(period);
-			if(lowerSum == null) {
-				lowerSum = 0.0;
-			}
-			
-			Double lowerSumIncr = Math.pow(1-alpha, (count-index));
-			BigDecimal bdLowerSum = new BigDecimal(lowerSum);
-			bdLowerSum = bdLowerSum.add(new BigDecimal(lowerSumIncr));
-			lowerSum = bdLowerSum.doubleValue();
-			
-			emaLowerSums.put(period, lowerSum);
-			
-			emaIndexes.put(period, index+1);
-		
-		}
-	
-	}
 	
 }

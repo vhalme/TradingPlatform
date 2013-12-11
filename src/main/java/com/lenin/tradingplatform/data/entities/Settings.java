@@ -2,6 +2,7 @@ package com.lenin.tradingplatform.data.entities;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.data.annotation.Id;
@@ -26,6 +27,13 @@ public class Settings implements Serializable {
 	private Map<String, String> lastBlockHashes;
 	
 	private Map<String, Map<String, Double>> serviceFees;
+	
+	private Map<String, Double> totalProfits = new HashMap<String, Double>();
+	
+	private String postUrl = "";
+	
+	private Long nonce = 0L;
+	private Long nonceMtgox = 0L;
 	
 	public Settings() {
 		
@@ -95,5 +103,38 @@ public class Settings implements Serializable {
 		this.serviceFees = serviceFees;
 	}
 
+	public Map<String, Double> getTotalProfits() {
+		return totalProfits;
+	}
+
+	public void setTotalProfits(Map<String, Double> totalProfits) {
+		this.totalProfits = totalProfits;
+	}
+
+	public String getPostUrl() {
+		return postUrl;
+	}
+	
+	public void setPostUrl(String postUrl) {
+		this.postUrl = postUrl;
+	}
+
+	public Long getNonce() {
+		return nonce;
+	}
+
+	public void setNonce(Long nonce) {
+		this.nonce = nonce;
+	}
+
+	public Long getNonceMtgox() {
+		return nonceMtgox;
+	}
+
+	public void setNonceMtgox(Long nonceMtgox) {
+		this.nonceMtgox = nonceMtgox;
+	}
+
+	
 	
 }

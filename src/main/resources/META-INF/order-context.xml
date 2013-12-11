@@ -38,9 +38,12 @@
 	
 	
 	<!-- Service -->
-    <bean id="ratesUpdateProcess" class="com.lenin.tradingplatform.RatesUpdateProcess">
+    <bean id="btceOrderProcess" class="com.lenin.tradingplatform.BtceOrderProcess">
     </bean>
-    
+    <bean id="mtgoxOrderProcess" class="com.lenin.tradingplatform.MtgoxOrderProcess">
+    </bean>
+    <bean id="testOrderProcess" class="com.lenin.tradingplatform.TestOrderProcess">
+    </bean>
      
 	<task:annotation-driven scheduler="taskScheduler"/>
 	<task:scheduler id="taskScheduler" pool-size="2"/>
@@ -48,18 +51,18 @@
     <context:annotation-config />
     
     <context:component-scan base-package="com.lenin.tradingplatform" >
- 
-		<context:include-filter type="regex" 
-                       expression="com.lenin.tradingplatform.TradingMain" />
-        
-        <context:exclude-filter type="regex" 
+ 		
+ 		<context:include-filter type="regex" 
                        expression="com.lenin.tradingplatform.OrderMain" />
         
         <context:exclude-filter type="regex" 
-                       expression="com.lenin.tradingplatform.TradingSessionMain" />
+                       expression="com.lenin.tradingplatform.UserInfoMain" />
                        
         <context:exclude-filter type="regex" 
-                       expression="com.lenin.tradingplatform.UserInfoMain" />
+                       expression="com.lenin.tradingplatform.TradingSessionMain" />
+                       
+		<context:exclude-filter type="regex" 
+                       expression="com.lenin.tradingplatform.TradingMain" />
                        
         <context:exclude-filter type="regex" 
                        expression="com.lenin.tradingplatform.RatesMain" />

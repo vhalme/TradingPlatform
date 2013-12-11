@@ -7,42 +7,42 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TradingMain {
+public class TradingSessionMain {
 
 	public static void main(String[] args) {
 			
-		String configFile = "META-INF/trading-context.xml";
+		String configFile = "META-INF/tradingsession-context.xml";
 		
 		if(args.length > 0) {
 			if(args[0].equals("debug")) {
-				configFile = "META-INF/trading-context-debug.xml";
+				configFile = "META-INF/tradingsession-context-debug.xml";
 			}
 		}
 		
 		ApplicationContext context = 
 				new ClassPathXmlApplicationContext(configFile);
 		
-		TradingMain main = context.getBean(TradingMain.class);
+		TradingSessionMain main = context.getBean(TradingSessionMain.class);
 		main.init();
 		
 	}
 
 	
 	@Autowired
-	private TradingProcess tradingProcess;
+	private TradingSessionProcess tradingSessionProcess;
 	
 	private void init() {
-		tradingProcess.init();
+		tradingSessionProcess.init();
 	}
 	
 	@Scheduled(fixedDelay = 15000)
 	public void update() {
 		
-		System.out.println("Start scheduled trading update v7");
+		System.out.println("Start scheduled trading session update");
 		
-		tradingProcess.update();
+		tradingSessionProcess.update();
 		
-		System.out.println("Finished scheduled trading update v7");
+		System.out.println("Finished scheduled trading session update");
 		
 		
 	}
